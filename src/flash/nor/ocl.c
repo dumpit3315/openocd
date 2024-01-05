@@ -91,6 +91,200 @@ static int ocl_erase(struct flash_bank *bank, unsigned int first,
 	return ERROR_OK;
 }
 
+#define OCL_ENABLE_READ
+
+static int ocl_read(struct flash_bank *bank, uint8_t *buffer, uint32_t offset, uint32_t count)
+{
+	#ifndef OCL_ENABLE_READ
+	return default_flash_read(bank, buffer, offset, count);
+	#else
+	struct ocl_priv *ocl = bank->driver_priv;
+
+	int retval;
+	uint32_t dcc_buffer[2];		
+	uint8_t read_buffer[4096];
+
+	uint32_t chksum;
+
+	uint32_t i;
+	uint32_t dst_offset = 0;
+	uint32_t read_width;
+	uint32_t rem;
+
+	if (ocl->buflen == 0 || ocl->bufalign == 0)
+		return ERROR_FLASH_BANK_NOT_PROBED;
+
+	if (bank->target->state != TARGET_RUNNING) {
+		LOG_ERROR("target has to be running to communicate with the loader");
+		return ERROR_TARGET_NOT_RUNNING;
+	}
+
+	/*
+	if ((offset % ocl->bufalign) != 0) {
+		LOG_ERROR("unimplemented feature: offset not divisible by 0x%x", ocl->bufalign);
+		return ERROR_NOT_IMPLEMENTED;
+	}
+	*/
+
+	dcc_buffer[0] = OCL_READ | ((count % ocl->bufalign) == 0 ? (count / ocl->bufalign) : ((count / ocl->bufalign) + 1));
+	dcc_buffer[1] = offset / ocl->bufalign;
+
+	/* send the data */
+	retval = embeddedice_send(ocl->jtag_info, dcc_buffer, 2);
+	if (retval != ERROR_OK) 	
+		return retval;
+
+	/* wait for response, fixed timeout of 1 s */
+	retval = embeddedice_handshake(ocl->jtag_info, EICE_COMM_CTRL_WBIT, 1000);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* receive response */
+	retval = embeddedice_receive(ocl->jtag_info, dcc_buffer, 1);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (dcc_buffer[0] != OCL_CMD_DONE) {
+		LOG_ERROR("loader response to OCL_READ 0x%08" PRIx32 "", dcc_buffer[0]);		
+		return ERROR_FLASH_OPERATION_FAILED;
+	}
+
+	retval = embeddedice_handshake(ocl->jtag_info, EICE_COMM_CTRL_WBIT, 0);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = embeddedice_receive(ocl->jtag_info, dcc_buffer, 1);
+	if (retval != ERROR_OK)
+		return retval;
+
+	read_width = dcc_buffer[0];
+
+	while (dst_offset < count) {
+		chksum = OCL_CHKS_INIT;
+
+		for (i = 0; i < (ocl->bufalign / read_width); i++) {
+			/* Read incoming data */
+			retval = embeddedice_handshake(ocl->jtag_info, EICE_COMM_CTRL_WBIT, 30000);
+			if (retval != ERROR_OK)
+				return retval;
+
+			retval = embeddedice_receive(ocl->jtag_info, dcc_buffer, 1);
+			if (retval != ERROR_OK)
+				return retval;
+
+			chksum ^= dcc_buffer[0];
+
+			/* Store into buffer */
+			if (read_width == 1) {
+				read_buffer[i] = dcc_buffer[0];
+
+			} else if (read_width == 2) {
+				if (bank->target->endianness == TARGET_BIG_ENDIAN) {
+					read_buffer[(i*2)] = dcc_buffer[0] >> 16;
+					read_buffer[(i*2) + 1] = dcc_buffer[0] & 0xff;
+				} else {
+					read_buffer[(i*2)] = dcc_buffer[0] & 0xff;
+					read_buffer[(i*2) + 1] = dcc_buffer[0] >> 16;
+				}
+
+			} else {
+				if (bank->target->endianness == TARGET_BIG_ENDIAN) {
+					read_buffer[(i*4)] = dcc_buffer[0] >> 24;
+					read_buffer[(i*4) + 1] = (dcc_buffer[0] >> 16) & 0xff;
+					read_buffer[(i*4) + 2] = (dcc_buffer[0] >> 8) & 0xff;
+					read_buffer[(i*4) + 3] = dcc_buffer[0] & 0xff;
+				} else {
+					read_buffer[(i*4)] = dcc_buffer[0] & 0xff;
+					read_buffer[(i*4) + 1] = (dcc_buffer[0] >> 8) & 0xff;
+					read_buffer[(i*4) + 2] = (dcc_buffer[0] >> 16) & 0xff;
+					read_buffer[(i*4) + 3] = dcc_buffer[0] >> 24;
+				}	
+
+			}
+		}	
+
+		/* read and verify the checksum */
+
+		retval = embeddedice_handshake(ocl->jtag_info, EICE_COMM_CTRL_WBIT, 0);
+		if (retval != ERROR_OK)
+			return retval;
+
+		retval = embeddedice_receive(ocl->jtag_info, dcc_buffer, 1);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if (dcc_buffer[0] != chksum) {
+#if 0			
+			dcc_buffer[0] = OCL_CHKS_FAIL;
+
+			/* send the data */
+			retval = embeddedice_send(ocl->jtag_info, dcc_buffer, 1);
+			if (retval != ERROR_OK) 	
+				return retval;
+
+			/* wait for response, fixed timeout of 1 s */
+			retval = embeddedice_handshake(ocl->jtag_info, EICE_COMM_CTRL_WBIT, 0);
+			if (retval != ERROR_OK)
+				return retval;
+
+			retval = embeddedice_receive(ocl->jtag_info, dcc_buffer, 1);
+			if (retval != ERROR_OK)
+				return retval;
+
+			if (dcc_buffer[0] != OCL_CMD_DONE) {
+				LOG_ERROR("read response returned 0x%08 (too many inconsistent reads?)" PRIx32 "", dcc_buffer[0]);		
+				return ERROR_FLASH_OPERATION_FAILED;
+			}
+
+			continue;
+#else
+			LOG_WARNING("checksum mismatch! 0x%x != 0x%x", chksum, dcc_buffer[0]);
+#endif		
+		}
+
+		dcc_buffer[0] = OCL_CMD_DONE;
+
+		/* send the data */
+		retval = embeddedice_send(ocl->jtag_info, dcc_buffer, 1);
+		if (retval != ERROR_OK) 	
+			return retval;
+
+		/* wait for response, fixed timeout of 1 s */
+		retval = embeddedice_handshake(ocl->jtag_info, EICE_COMM_CTRL_WBIT, 1000);
+		if (retval != ERROR_OK)
+			return retval;
+
+		retval = embeddedice_receive(ocl->jtag_info, dcc_buffer, 1);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if (dcc_buffer[0] != OCL_CMD_DONE) {
+			LOG_ERROR("read response returned 0x%08" PRIx32 "", dcc_buffer[0]);		
+			return ERROR_FLASH_OPERATION_FAILED;
+		}
+
+		rem = ocl->bufalign - (offset % ocl->bufalign);
+		if ((count - dst_offset) < ocl->bufalign) {
+			rem = (count - dst_offset);
+		}
+
+		memcpy(buffer + dst_offset, read_buffer + (offset % ocl->bufalign), rem);
+
+		dst_offset += rem;
+		offset += rem;
+	}
+
+	/*
+	if (dcc_buffer[0] != 1) {
+		LOG_ERROR("unimplemented: read width != 1");
+		return ERROR_NOT_IMPLEMENTED;
+	}
+	*/
+
+	return ERROR_OK;
+	#endif
+}
+
 static int ocl_write(struct flash_bank *bank, const uint8_t *buffer, uint32_t offset, uint32_t count)
 {
 	struct ocl_priv *ocl = bank->driver_priv;
@@ -308,7 +502,7 @@ const struct flash_driver ocl_flash = {
 	.flash_bank_command = ocl_flash_bank_command,
 	.erase = ocl_erase,
 	.write = ocl_write,
-	.read = default_flash_read,
+	.read = ocl_read,
 	.probe = ocl_probe,
 	.erase_check = default_flash_blank_check,
 	.auto_probe = ocl_auto_probe,

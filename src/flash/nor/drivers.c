@@ -14,6 +14,7 @@
  * @todo Make this dynamically extendable with loadable modules.
  */
 static const struct flash_driver * const flash_drivers[] = {
+	&dummy_flash_flash,
 	&aduc702x_flash,
 	&aducm360_flash,
 	&ambiqmicro_flash,

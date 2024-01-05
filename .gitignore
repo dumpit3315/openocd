@@ -111,3 +111,11 @@ GTAGS
 # A compile_commands.json can be generated using bear and will help tools such
 # as clangd to locate header files and use correct $CFLAGS
 compile_commands.json
+
+# 6025load additions
+contrib/loaders/flash/6025dump/*.elf
+contrib/loaders/flash/6025dump/*.hex
+contrib/loaders/flash/6025dump/*.lst
+contrib/loaders/flash/6025dump/*.map
+contrib/loaders/flash/6025dump/*.bin
+contrib/loaders/flash/6025dump/*.txt

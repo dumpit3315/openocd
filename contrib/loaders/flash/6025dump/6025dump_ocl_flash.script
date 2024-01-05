@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+soft_reset_halt
+load_image 6025dump_ocl.bin 0x14000000
+resume 0x14000000
+flash probe 0

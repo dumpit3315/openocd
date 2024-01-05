@@ -922,6 +922,71 @@ COMMAND_HANDLER(handle_flash_read_bank_command)
 	return retval;
 }
 
+COMMAND_HANDLER(handle_flash_read_bank_memory_command)
+{
+	uint32_t offset;
+	uint8_t *buffer;	
+	uint32_t length;		
+
+	if (CMD_ARGC < 1 || CMD_ARGC > 3)
+		return ERROR_COMMAND_SYNTAX_ERROR;	
+
+	struct flash_bank *p;
+	int retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &p);
+
+	if (retval != ERROR_OK)
+		return retval;
+
+	offset = 0;
+
+	if (CMD_ARGC > 1)
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], offset);
+
+	if (offset > p->size) {
+		LOG_ERROR("Offset 0x%8.8" PRIx32 " is out of range of the flash bank",
+			offset);
+		return ERROR_COMMAND_ARGUMENT_INVALID;
+	}
+
+	length = p->size - offset;
+
+	if (CMD_ARGC > 2)
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], length);
+
+	if (offset + length > p->size) {
+		LOG_ERROR("Length of %" PRIu32 " bytes with offset 0x%8.8" PRIx32
+			" is out of range of the flash bank", length, offset);
+		return ERROR_COMMAND_ARGUMENT_INVALID;
+	}
+
+	if (length >= 65536) {
+		command_print(CMD, "read_bank_memory: too large read request, exceeds 64K elements");
+		return ERROR_FAIL;
+	}
+
+	buffer = malloc(length);
+	if (!buffer) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+
+	retval = flash_driver_read(p, buffer, offset, length);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Read error");
+		free(buffer);
+		return retval;
+	}
+	
+	char *sep = "";
+	for (size_t i = 0; i < length; i++) {
+		command_print_sameline(CMD, "%s0x%02x", sep, buffer[i]);
+		sep = " ";
+	}
+
+	free(buffer);
+	return retval;
+}
+
 
 COMMAND_HANDLER(handle_flash_verify_bank_command)
 {
@@ -1201,6 +1266,14 @@ static const struct command_registration flash_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id filename [offset [length]]",
 		.help = "Read binary data from flash bank to file. Allow optional "
+			"offset from beginning of the bank (defaults to zero).",
+	},
+	{
+		.name = "read_bank_memory",
+		.handler = handle_flash_read_bank_memory_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id [offset [length]]",
+		.help = "Read binary data from flash bank to an array. Allow optional "
 			"offset from beginning of the bank (defaults to zero).",
 	},
 	{
