@@ -92,8 +92,8 @@ def test_arm():
         mu.mem_map(0x14000000, 2 * 1024 * 1024)
 
         # write machine code to be emulated to memory
-        mu.mem_write(0x14000000, open("6025dump_ocl.bin", "rb").read())              
-        mu.mem_write(0x0, open("6025dump_ocl.bin", "rb").read()) 
+        mu.mem_write(0x14000000, open("6025dump_ocl_read2.bin", "rb").read())              
+        mu.mem_write(0x0, open("6025dump_ocl_read2.bin", "rb").read()) 
 
         # initialize machine registers
         mu.reg_write(UC_ARM_REG_APSR, 0xFFFFFFFF) #All application flags turned on        
