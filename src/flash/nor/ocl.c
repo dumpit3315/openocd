@@ -111,6 +111,8 @@ static int ocl_read(struct flash_bank *bank, uint8_t *buffer, uint32_t offset, u
 	uint32_t read_width;
 	uint32_t rem;
 
+	uint16_t read_block_count;
+
 	if (ocl->buflen == 0 || ocl->bufalign == 0)
 		return ERROR_FLASH_BANK_NOT_PROBED;
 
@@ -126,7 +128,16 @@ static int ocl_read(struct flash_bank *bank, uint8_t *buffer, uint32_t offset, u
 	}
 	*/
 
-	dcc_buffer[0] = OCL_READ | ((count % ocl->bufalign) == 0 ? (count / ocl->bufalign) : ((count / ocl->bufalign) + 1));
+	if (count <= 0) return ERROR_OK;
+
+	read_block_count = ((count % ocl->bufalign) == 0 ? (count / ocl->bufalign) : ((count / ocl->bufalign) + 1)) - 1;
+
+	if (read_block_count > 0xffff) {
+		LOG_ERROR("Read size must not be larger than 0xffff");
+		return ERROR_FLASH_OPER_UNSUPPORTED;
+	}
+
+	dcc_buffer[0] = OCL_READ | read_block_count;
 	dcc_buffer[1] = offset / ocl->bufalign;
 
 	/* send the data */

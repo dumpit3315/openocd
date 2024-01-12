@@ -5,7 +5,7 @@
 #
 
 TRGT = arm-none-eabi-
-CC   = $(TRGT)gcc -DREAD_AT_0x12000000_AFTER_8MB
+CC   = $(TRGT)gcc -DREAD_AT_0x12000000=1 -DENABLE_OCL_READ2=1
 CP   = $(TRGT)objcopy
 AS   = $(TRGT)gcc -x assembler-with-cpp
 HEX  = $(CP) -O ihex
@@ -38,7 +38,7 @@ DLIBS =
 #
 
 # Define project name here
-PROJECT = 6025dump_ocl_0x12_after_8mb
+PROJECT = 6025dump_ocl_0x12_read2
 
 # Define linker script file here
 LDSCRIPT= 6025dump_ram.ld

@@ -19,7 +19,11 @@ wr_reg = 0
 
 # callback for tracing instructions
 def hook_code(uc: Uc, address, size, user_data):    
-    #print(">>> Tracing instruction at 0x%x, instruction size = 0x%x" %(address, size))
+    if False:
+        print(">>> Tracing instruction at 0x%x, instruction size = 0x%x" %(address, size))
+        print("SP: 0x%x" %(uc.reg_read(UC_ARM_REG_SP)))
+    
+    
     global status_reg, wr_reg
     
     cs = Cs(CS_ARCH_ARM, CS_MODE_THUMB if uc.reg_read(UC_ARM_REG_PC) & 1 else CS_MODE_ARM)
@@ -190,27 +194,52 @@ if __name__ == '__main__':
     print("Buffer length:", hex(flash_buflen))
     print("Block size:", hex(flash_bufalign))
     
-    ''' 2: Read '''
-    _dcc_write_host(0x0CAD0007) # Length
-    _dcc_write_host(0x00000001) # Offset
+    ''' 2: Read '''    
+    _dcc_write_host(0x0CD20007) # Length (Low)
+    _dcc_write_host(0x00010000) # Offset (Low) / Length (High)
+    _dcc_write_host(0x00000000) # Offset (High)
     
     while (_dcc_read_status_host() & 2) == 0: time.sleep(0.1)
     assert _dcc_read_host() == 0x0ACD0000, "CMD response is not OK"
     
     while (_dcc_read_status_host() & 2) == 0: time.sleep(0.1)
-    read_width = _dcc_read_host()
+    buffer_size = _dcc_read_host()
     
     print("OCL Simulator Read command:\n")
-    print("Read Width:", read_width)
+    print("Buffer_Size:", buffer_size)
     
     for p in range(8):
         chksum = 0xC100CD0C
-        for c in range(flash_bufalign // read_width):
+        temp_data = bytearray()
+        
+        while True:
             while (_dcc_read_status_host() & 2) == 0: time.sleep(0.01)
             data_recv = _dcc_read_host()
-            chksum ^= data_recv
+            if (data_recv >> 24) == 0xff:
+                chksum ^= data_recv & 0xffffff
+                temp_data += ((data_recv) & 0xff).to_bytes(1, "little")
+                temp_data += ((data_recv >> 8) & 0xff).to_bytes(1, "little")
+                temp_data += ((data_recv >> 16) & 0xff).to_bytes(1, "little")
+                
+            elif (data_recv >> 24) == 0x2:
+                chksum ^= data_recv & 0xff
+                temp_data += ((data_recv) & 0xff).to_bytes(1, "little")                
+                break
+                
+            elif (data_recv >> 24) == 0x1:
+                chksum ^= data_recv & 0xffff
+                temp_data += ((data_recv) & 0xff).to_bytes(1, "little")
+                temp_data += ((data_recv >> 8) & 0xff).to_bytes(1, "little")
+                break
+                
+            elif (data_recv >> 24) == 0x0:
+                chksum ^= data_recv & 0xffffff
+                temp_data += ((data_recv) & 0xff).to_bytes(1, "little")
+                temp_data += ((data_recv >> 8) & 0xff).to_bytes(1, "little")
+                temp_data += ((data_recv >> 16) & 0xff).to_bytes(1, "little")
+                break
             
-            print(f"Data {c}: {hex(data_recv)}")
+        print("Compressed data:", temp_data)
             
         while (_dcc_read_status_host() & 2) == 0: time.sleep(0.1)
         received_checksum = _dcc_read_host()
@@ -224,4 +253,4 @@ if __name__ == '__main__':
         assert _dcc_read_host() == 0x0ACD0000, "CMD response is not OK"
         
         print(f"Read pass {p+1} end")
-        time.sleep(2)
+        time.sleep(5)

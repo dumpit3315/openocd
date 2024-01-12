@@ -50,7 +50,7 @@ UDEFS =
 UADEFS =
 
 # List C source files here
-SRC  = main.c dcc.c
+SRC  = main.c dcc.c minilzo.c
 
 # List ASM source files here
 ASRC = crt.s
