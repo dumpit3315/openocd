@@ -111,7 +111,7 @@ static int ocl_read(struct flash_bank *bank, uint8_t *buffer, uint32_t offset, u
 	uint32_t read_width;
 	uint32_t rem;
 
-	uint16_t read_block_count;
+	uint32_t read_block_count;
 
 	if (ocl->buflen == 0 || ocl->bufalign == 0)
 		return ERROR_FLASH_BANK_NOT_PROBED;
