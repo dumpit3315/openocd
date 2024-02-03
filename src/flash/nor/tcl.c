@@ -959,7 +959,7 @@ COMMAND_HANDLER(handle_flash_read_bank_memory_command)
 		return ERROR_COMMAND_ARGUMENT_INVALID;
 	}
 
-	if (length >= 65536) {
+	if (length > 65536) {
 		command_print(CMD, "read_bank_memory: too large read request, exceeds 64K elements");
 		return ERROR_FAIL;
 	}
