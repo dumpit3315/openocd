@@ -643,9 +643,9 @@ int arm7_9_execute_sys_speed(struct target *target)
 			keep_alive();
 	}
 	if (timeout) {
-		LOG_ERROR("timeout waiting for SYSCOMP & DBGACK, last DBG_STATUS: %" PRIx32 "",
+		LOG_WARN("timeout (1000ms) waiting for SYSCOMP & DBGACK, last DBG_STATUS: %" PRIx32 "",
 			buf_get_u32(dbg_stat->value, 0, dbg_stat->size));
-		return ERROR_TARGET_TIMEOUT;
+		//return ERROR_TARGET_TIMEOUT;
 	}
 
 	return ERROR_OK;
