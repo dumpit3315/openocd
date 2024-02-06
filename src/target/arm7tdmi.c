@@ -438,6 +438,7 @@ static void arm7tdmi_load_word_regs(struct target *target, uint32_t mask)
 
 	/* put system-speed load-multiple into the pipeline */
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
+	if (arm7_9->arm7_additional_nop) arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 1);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_LDMIA(0, mask & 0xffff, 0, 1), 0);
 }
@@ -449,6 +450,7 @@ static void arm7tdmi_load_hword_reg(struct target *target, int num)
 
 	/* put system-speed load half-word into the pipeline */
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
+	if (arm7_9->arm7_additional_nop) arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 1);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_LDRH_IP(num, 0), 0);
 }
@@ -460,6 +462,7 @@ static void arm7tdmi_load_byte_reg(struct target *target, int num)
 
 	/* put system-speed load byte into the pipeline */
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
+	if (arm7_9->arm7_additional_nop) arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 1);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_LDRB_IP(num, 0), 0);
 }
@@ -471,6 +474,7 @@ static void arm7tdmi_store_word_regs(struct target *target, uint32_t mask)
 
 	/* put system-speed store-multiple into the pipeline */
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
+	if (arm7_9->arm7_additional_nop) arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 1);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_STMIA(0, mask, 0, 1), 0);
 }
@@ -482,6 +486,7 @@ static void arm7tdmi_store_hword_reg(struct target *target, int num)
 
 	/* put system-speed store half-word into the pipeline */
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
+	if (arm7_9->arm7_additional_nop) arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 1);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_STRH_IP(num, 0), 0);
 }
@@ -493,6 +498,7 @@ static void arm7tdmi_store_byte_reg(struct target *target, int num)
 
 	/* put system-speed store byte into the pipeline */
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
+	if (arm7_9->arm7_additional_nop) arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 0);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_NOP, 1);
 	arm7tdmi_clock_out(jtag_info, ARMV4_5_STRB_IP(num, 0), 0);
 }

@@ -2795,6 +2795,26 @@ COMMAND_HANDLER(handle_arm7_9_fast_memory_access_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_arm7_9_additional_nop_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm7_9_common *arm7_9 = target_to_arm7_9(target);
+
+	if (!is_arm7_9(arm7_9)) {
+		command_print(CMD, "current target isn't an ARM7/ARM9 target");
+		return ERROR_TARGET_INVALID;
+	}
+
+	if (CMD_ARGC > 0)
+		COMMAND_PARSE_ENABLE(CMD_ARGV[0], arm7_9->arm7_additional_nop);
+
+	command_print(CMD,
+		"additional NOP between memory access %s",
+		(arm7_9->arm7_additional_nop) ? "enabled" : "disabled");
+
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(handle_arm7_9_dcc_downloads_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -2861,6 +2881,8 @@ int arm7_9_init_arch_info(struct target *target, struct arm7_9_common *arm7_9)
 	arm7_9->fast_memory_access = false;
 	arm7_9->dcc_downloads = false;
 
+	arm7_9->arm7_additional_nop = false;
+
 	arm->arch_info = arm7_9;
 	arm->core_type = ARM_CORE_TYPE_STD;
 	arm->read_core_reg = arm7_9_read_core_reg;
@@ -2899,6 +2921,13 @@ static const struct command_registration arm7_9_any_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.usage = "['enable'|'disable']",
 		.help = "use DCC downloads for larger memory writes",
+	},
+	{
+		.name = "additional_nop",
+		.handler = handle_arm7_9_additional_nop_command,
+		.mode = COMMAND_ANY,
+		.usage = "['enable'|'disable']",
+		.help = "add additional NOP between memory access (ARM7TDMI only)",
 	},
 	COMMAND_REGISTRATION_DONE
 };

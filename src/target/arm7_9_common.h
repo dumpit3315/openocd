@@ -56,6 +56,7 @@ struct arm7_9_common {
 
 	bool fast_memory_access;
 	bool dcc_downloads;
+	bool arm7_additional_nop;
 
 	struct working_area *dcc_working_area;
 
