@@ -987,6 +987,102 @@ COMMAND_HANDLER(handle_flash_read_bank_memory_command)
 	return retval;
 }
 
+#if 0
+static int flash_jim_write_bank_memory(Jim_Interp *interp, int argc,
+		Jim_Obj * const *argv)
+{
+	/*
+	 * argv[1] = memory address	 
+	 * argv[2] = list of data to write	 
+	 */
+
+	if (argc != 3) {
+		Jim_WrongNumArgs(interp, 1, argv, "address data");
+		return JIM_ERR;
+	}
+
+	/* Arg 1: Memory address. */
+	int e;
+	jim_wide wide_addr;
+	e = Jim_GetWide(interp, argv[1], &wide_addr);
+
+	if (e != JIM_OK)
+		return e;
+
+	target_addr_t addr = (target_addr_t)wide_addr;
+
+	/* Arg 2: Bit width of one element. */	
+	const unsigned int width_bits = 8;
+	size_t count = Jim_ListLength(interp, argv[2]);	
+
+	const unsigned int width = width_bits / 8;
+
+	struct flash_bank *p;
+	int retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &p);
+
+	if (retval != ERROR_OK)
+		return retval;
+
+	if ((addr + (count * width)) < addr) {
+		Jim_SetResultString(interp, "write_memory: addr + len wraps to zero", -1);
+		return JIM_ERR;
+	}
+
+	if (count > 65536) {
+		Jim_SetResultString(interp, "write_memory: too large memory write request, exceeds 64K elements", -1);
+		return JIM_ERR;
+	}
+
+	struct command_context *cmd_ctx = current_command_context(interp);
+	assert(cmd_ctx != NULL);
+	struct target *target = get_current_target(cmd_ctx);
+
+	const size_t buffersize = 4096;
+	uint8_t *buffer = malloc(buffersize);
+
+	if (!buffer) {
+		LOG_ERROR("Failed to allocate memory");
+		return JIM_ERR;
+	}
+
+	size_t j = 0;
+
+	while (count > 0) {
+		const unsigned int max_chunk_len = buffersize / width;
+		const size_t chunk_len = MIN(count, max_chunk_len);
+
+		for (size_t i = 0; i < chunk_len; i++, j++) {
+			Jim_Obj *tmp = Jim_ListGetIndex(interp, argv[2], j);
+			jim_wide element_wide;
+			Jim_GetWide(interp, tmp, &element_wide);
+
+			const uint64_t v = element_wide;
+
+			buffer[i] = v & 0x0ff;
+		}
+
+		count -= chunk_len;
+
+		int retval;
+		
+		retval = flash_driver_write(target, addr, width, chunk_len, buffer);
+
+		if (retval != ERROR_OK) {
+			LOG_ERROR("write_memory: write at " TARGET_ADDR_FMT " with width=%u and count=%zu failed",
+				addr,  width_bits, chunk_len);
+			Jim_SetResultString(interp, "write_memory: failed to write memory", -1);
+			e = JIM_ERR;
+			break;
+		}
+
+		addr += chunk_len * width;
+	}
+
+	free(buffer);
+
+	return e;
+}
+#endif
 
 COMMAND_HANDLER(handle_flash_verify_bank_command)
 {
