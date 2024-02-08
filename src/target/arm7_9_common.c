@@ -680,20 +680,27 @@ static int arm7_9_execute_fast_sys_speed(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (!set) {
-		/* check for DBGACK and SYSCOMP set (others don't care) */
+	if (!arm7_9->fast_memory_access_no_embeddedice_read) {
+		if (!set) {
+			/* check for DBGACK and SYSCOMP set (others don't care) */
 
-		/* NB! These are constants that must be available until after next jtag_execute() and
-		 * we evaluate the values upon first execution in lieu of setting up these constants
-		 * during early setup.
-		 * */
-		buf_set_u32(check_value, 0, 32, 0x9);
-		buf_set_u32(check_mask, 0, 32, 0x9);
-		set = 1;
+			/* NB! These are constants that must be available until after next jtag_execute() and
+			* we evaluate the values upon first execution in lieu of setting up these constants
+			* during early setup.
+			* */
+			buf_set_u32(check_value, 0, 32, 0x9);
+			buf_set_u32(check_mask, 0, 32, 0x9);
+			set = 1;
+		}
+
+		/* read debug status register */
+		embeddedice_read_reg_w_check(dbg_stat, check_value, check_mask);
+		if (arm7_9->fast_memory_access_additional_execute) {
+			retval = jtag_execute_queue();
+				if (retval != ERROR_OK)
+					return retval;
+		}
 	}
-
-	/* read debug status register */
-	embeddedice_read_reg_w_check(dbg_stat, check_value, check_mask);
 
 	return ERROR_OK;
 }
@@ -2882,6 +2889,9 @@ int arm7_9_init_arch_info(struct target *target, struct arm7_9_common *arm7_9)
 	arm7_9->dcc_downloads = false;
 
 	arm7_9->arm7_additional_nop = false;
+
+	arm7_9->fast_memory_access_additional_execute = true;
+	arm7_9->fast_memory_access_no_embeddedice_read = false;
 
 	arm->arch_info = arm7_9;
 	arm->core_type = ARM_CORE_TYPE_STD;
