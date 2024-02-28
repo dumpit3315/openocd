@@ -163,7 +163,7 @@ static int msm6250_nand_command(struct nand_device *nand, uint8_t command)
 	{
 		LOG_DEBUG("MSM6250 NANDC: execute reset operation");
 		target_write_u32(target, msm6250_nand->base_offset + MSM6250_REG_FLASH_CMD, MSM6250_CMD_FLASH_RESET_NAND);
-		CHECK_TIMEOUT_6250;		
+		CHECK_TIMEOUT_6250;
 	}
 	// fall through
 	case NAND_CMD_READ0:
@@ -901,7 +901,7 @@ static int msm6800_nand_command(struct nand_device *nand, uint8_t command)
 #endif
 			}
 			break;
-		}		
+		}
 	}
 	// fall through
 	default:
@@ -1047,7 +1047,11 @@ static int msm6800_nand_address(struct nand_device *nand, uint8_t address)
 				return ERROR_NAND_OPERATION_FAILED;
 
 #ifdef DEBUG_MSM_NANDC
+#if DEBUG_MSM_NAND_SIZE == 1
 			temp = 0xb1;
+#else
+			temp = 0x72;
+#endif
 #endif
 
 			msm6800_nand->temp_idcode |= temp << 8;
@@ -1438,6 +1442,10 @@ static int msm6800_nand_init(struct nand_device *nand)
 				return ERROR_NAND_OPERATION_FAILED;
 			}
 
+#ifdef DEBUG_MSM_NANDC
+			temp = DEBUG_MSM_NAND_SIZE;
+#endif
+
 			page_size = temp ? 2048 : 512;
 			result = GET_BIT(target, msm6800_nand->base_offset + MSM6800_REG_FLASH_STATUS, MSM6800_STATUS_NAND_AUTOPROBE_IS16BIT, &temp);
 			if (result != ERROR_OK)
@@ -1741,7 +1749,7 @@ static int msm7200_nand_command(struct nand_device *nand, uint8_t command)
 
 		result = msm7200_send_command(nand, MSM7200_CMD_RESET_NAND);
 		if (result != ERROR_OK)
-			return result;		
+			return result;
 	}
 	// fall through
 	case NAND_CMD_READ0:
@@ -1784,7 +1792,7 @@ static int msm7200_nand_command(struct nand_device *nand, uint8_t command)
 #endif
 			}
 			break;
-		}		
+		}
 	}
 	// fall through
 	default:
@@ -1864,7 +1872,7 @@ static int msm7200_read_request(struct nand_device *nand, uint32_t page, uint8_t
 static int msm7200_nand_address(struct nand_device *nand, uint8_t address)
 {
 	struct target *target = nand->target;
-	struct msm7200_nand_controller *msm7200_nand = nand->controller_priv;	
+	struct msm7200_nand_controller *msm7200_nand = nand->controller_priv;
 
 	int result;
 
@@ -1896,7 +1904,11 @@ static int msm7200_nand_address(struct nand_device *nand, uint8_t address)
 				return ERROR_NAND_OPERATION_FAILED;
 
 #ifdef DEBUG_MSM_NANDC
+#if DEBUG_MSM_NAND_SIZE == 1
 			msm7200_nand->temp_idcode = 0x5500b198;
+#else
+			msm7200_nand->temp_idcode = 0x00007298;
+#endif
 #endif
 		}
 		break;
