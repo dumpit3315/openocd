@@ -13,8 +13,8 @@
 #include "config.h"
 #endif
 
-#define DEBUG_MSM_NANDC
-#define DEBUG_MSM_NAND_SIZE 1
+// #define DEBUG_MSM_NANDC
+// #define DEBUG_MSM_NAND_SIZE 1
 
 #include "imp.h"
 #include "msm_nand.h"
