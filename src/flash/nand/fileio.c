@@ -134,6 +134,8 @@ COMMAND_HELPER(nand_fileio_parse_args, struct nand_fileio_state *state,
 		for (unsigned i = minargs; i < CMD_ARGC; i++) {
 			if (!strcmp(CMD_ARGV[i], "oob_raw"))
 				state->oob_format |= NAND_OOB_RAW;
+			else if (!strcmp(CMD_ARGV[i], "oob_raw_seperate"))
+				state->oob_format |= NAND_OOB_RAW | NAND_OOB_SEPERATE;
 			else if (!strcmp(CMD_ARGV[i], "oob_only"))
 				state->oob_format |= NAND_OOB_RAW | NAND_OOB_ONLY;
 			else if (sw_ecc && !strcmp(CMD_ARGV[i], "oob_softecc"))
@@ -172,6 +174,11 @@ int nand_fileio_read(struct nand_device *nand, struct nand_fileio_state *s)
 {
 	size_t total_read = 0;
 	size_t one_read;
+
+	if (s->oob_format & NAND_OOB_SEPERATE) {
+		LOG_ERROR("currently, nand dumps with oob after the last page is not yet supported");
+		return ERROR_NOT_IMPLEMENTED;
+	}
 
 	if (s->page) {
 		fileio_read(s->fileio, s->page_size, s->page, &one_read);

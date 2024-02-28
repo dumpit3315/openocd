@@ -39,11 +39,11 @@ static int dummy_write(int tck, int tms, int tdi)
 
 			if (old_state != dummy_state) {
 				if (clock_count) {
-					LOG_DEBUG("dummy_tap: %d stable clocks", clock_count);
+					LOG_DEBUG_IO("dummy_tap: %d stable clocks", clock_count);
 					clock_count = 0;
 				}
 
-				LOG_DEBUG("dummy_tap: %s", tap_state_name(dummy_state));
+				LOG_DEBUG_IO("dummy_tap: %s", tap_state_name(dummy_state));
 
 #if defined(DEBUG)
 				if (dummy_state == TAP_DRCAPTURE)
@@ -68,7 +68,7 @@ static int dummy_reset(int trst, int srst)
 	if (trst || (srst && (jtag_get_reset_config() & RESET_SRST_PULLS_TRST)))
 		dummy_state = TAP_RESET;
 
-	LOG_DEBUG("reset to: %s", tap_state_name(dummy_state));
+	LOG_DEBUG_IO("reset to: %s", tap_state_name(dummy_state));
 	return ERROR_OK;
 }
 

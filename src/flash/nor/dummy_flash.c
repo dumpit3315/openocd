@@ -50,7 +50,7 @@ static int dummy_flash_erase(struct flash_bank *bank, unsigned int first,
 
 	for (i = 0; i < ((last + 1) - first); i++) {
 		LOG_INFO("Erasing block %d", first + i);
-		memset(dummy_flash_contents + ((first + i) * 512), 0, 512);
+		memset(dummy_flash_contents + ((first + i) * 512), 0xff, 512);
 	}	
 
 	return ERROR_OK;
@@ -68,9 +68,13 @@ static int dummy_flash_write(struct flash_bank *bank, const uint8_t *buffer, uin
 	LOG_INFO("Writing %d bytes to 0x%x", count, offset);
 
 	/* allocate buffer for max. dummy_flash buffer + overhead */
+	memcpy(dummy_flash_contents + offset, buffer, count);
+
+	/*
 	for (i = 0; i<count; i++) {
 		dummy_flash_contents[offset+i] = buffer[i];
-	}
+	}*
+	*/
 
 	return ERROR_OK;
 }
@@ -80,9 +84,12 @@ static int dummy_flash_read(struct flash_bank *bank, uint8_t *buffer, uint32_t o
 	unsigned int i;
 	LOG_INFO("Reading %d bytes from 0x%x", count, offset);
 
+	memcpy(buffer, dummy_flash_contents + offset, count);
+	/*
 	for (i = 0; i<count; i++) {
 		buffer[i] = dummy_flash_contents[offset+i];
 	}
+	*/
 
 	return ERROR_OK;
 }

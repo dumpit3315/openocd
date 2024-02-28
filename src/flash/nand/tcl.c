@@ -328,12 +328,18 @@ COMMAND_HANDLER(handle_nand_verify_command)
 COMMAND_HANDLER(handle_nand_dump_command)
 {
 	size_t filesize;
+	size_t next;
+	size_t oob;
+
 	struct nand_device *nand = NULL;
 	struct nand_fileio_state s;
 	int retval = CALL_COMMAND_HANDLER(nand_fileio_parse_args,
 			&s, &nand, FILEIO_WRITE, true, false);
 	if (retval != ERROR_OK)
 		return retval;
+
+	next = 0;
+	oob = s.size;
 
 	while (s.size > 0) {
 		size_t size_written;
@@ -348,8 +354,19 @@ COMMAND_HANDLER(handle_nand_dump_command)
 		if (s.page)
 			fileio_write(s.fileio, s.page_size, s.page, &size_written);
 
-		if (s.oob)
-			fileio_write(s.fileio, s.oob_size, s.oob, &size_written);
+		next += s.page_size;
+
+		if (s.oob) {
+			if (s.oob_format & NAND_OOB_SEPERATE) {				
+				fileio_seek(s.fileio, oob);
+				fileio_write(s.fileio, s.oob_size, s.oob, &size_written);
+				fileio_seek(s.fileio, next);
+			} else {
+				fileio_write(s.fileio, s.oob_size, s.oob, &size_written);
+			}			
+		}
+
+		oob += s.oob_size;
 
 		s.size -= nand->page_size;
 		s.address += nand->page_size;
@@ -365,6 +382,63 @@ COMMAND_HANDLER(handle_nand_dump_command)
 			duration_kbps(&s.bench, filesize));
 	}
 	return ERROR_OK;
+}
+
+COMMAND_HANDLER(handle_nand_dump_memory_command)
+{
+	uint32_t page;
+	uint8_t *buffer;	
+	uint32_t count;		
+
+	uint32_t oob_pos = 0;
+	uint32_t oob_base;
+
+	uint32_t data_pos = 0;
+	size_t tot_size;
+
+	if (CMD_ARGC != 3)
+		return ERROR_COMMAND_SYNTAX_ERROR;	
+
+	struct nand_device *p;
+	int retval = CALL_COMMAND_HANDLER(nand_command_get_device, 0, &p);
+	if (retval != ERROR_OK)
+		return retval;
+
+	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], page);
+	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], count);
+
+	tot_size = (p->page_size * count) + ((p->page_size <= 512 ? 16 : 64) * count);
+	oob_base = p->page_size * count;
+
+	buffer = malloc(tot_size);
+	if (!buffer) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+
+	while (count--) {		
+		retval = nand_read_page(p, page++, buffer + data_pos, p->page_size, buffer + oob_base + oob_pos, p->page_size <= 512 ? 16 : 64);
+
+		if (retval != ERROR_OK) {
+			command_print(CMD, "reading NAND flash page failed");
+			free(buffer);
+			return retval;
+		}
+		
+		LOG_DEBUG("Copy NAND buffer to 0x%x, oob to 0x%x", data_pos, oob_base + oob_pos);
+
+		data_pos += p->page_size;
+		oob_pos += p->page_size <= 512 ? 16 : 64;
+	}
+
+	char *sep = "";
+	for (size_t i = 0; i < tot_size; i++) {
+		command_print_sameline(CMD, "%s0x%02x", sep, buffer[i]);
+		sep = " ";
+	}
+
+	free(buffer);
+	return retval;
 }
 
 COMMAND_HANDLER(handle_nand_raw_access_command)
@@ -432,8 +506,15 @@ static const struct command_registration nand_exec_command_handlers[] = {
 		.handler = handle_nand_dump_command,
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id filename offset length "
-			"['oob_raw'|'oob_only']",
+			"['oob_raw'|'oob_raw_seperate'|'oob_only']",
 		.help = "dump from NAND flash device",
+	},
+	{
+		.name = "dump_memory",
+		.handler = handle_nand_dump_memory_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id page count",
+		.help = "dump from NAND flash device to memory",
 	},
 	{
 		.name = "verify",
@@ -448,7 +529,7 @@ static const struct command_registration nand_exec_command_handlers[] = {
 		.handler = handle_nand_write_command,
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id filename offset "
-			"['oob_raw'|'oob_only'|'oob_softecc'|'oob_softecc_kw']",
+			"['oob_raw'|'oob_raw_seperate'|'oob_only'|'oob_softecc'|'oob_softecc_kw']",
 		.help = "write to NAND flash device",
 	},
 	{

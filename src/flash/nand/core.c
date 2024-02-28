@@ -305,6 +305,7 @@ int nand_probe(struct nand_device *nand)
 	nand->address_cycles = 0;
 	nand->page_size = 0;
 	nand->erase_size = 0;
+	nand->nand_type = 0;
 
 	/* initialize controller (device parameters are zero, use controller default) */
 	retval = nand->controller->init(nand);
@@ -681,6 +682,8 @@ int nand_read_page(struct nand_device *nand, uint32_t page,
 	uint8_t *data, uint32_t data_size,
 	uint8_t *oob, uint32_t oob_size)
 {
+	LOG_DEBUG("Reading NAND device page %d, ds 0x%x, os 0x%x", page, data_size, oob_size);
+
 	if (!nand->device)
 		return ERROR_NAND_DEVICE_NOT_PROBED;
 

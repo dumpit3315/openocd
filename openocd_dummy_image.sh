@@ -1,0 +1,2 @@
+#!/bin/bash
+src/openocd -d4 -c "adapter driver dummy; adapter speed 800; jtag newtap target cpu -irlen 4; target create target.cpu arm926ejs -endian little -chain-position target.cpu; gdb_port disabled; telnet_port pipe; flash bank target.nor faux 0x0 0x00008000 2 2 target.cpu; arm7_9 dcc_downloads enable; arm7_9 fast_memory_access enable; arm7_9 additional_nop enable; arm7_9 dbgrq enable; init;" -c "halt; flash probe 0; flash read_bank 0 {../faux.bin} 0x0 0x0 0x200;"

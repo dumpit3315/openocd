@@ -1,6 +1,15 @@
 {
     "files.associations": {
+        "*.ejs": "html",
+        "*.c": "c",
+        "*.s": "ca65",
         "stddef.h": "c",
-        "time_support.h": "c"
+        "time_support.h": "c",
+        "config.h": "c",
+        "functional": "c",
+        "arm.h": "c",
+        "target.h": "c",
+        "arm_io.h": "c",
+        "algorithm": "c"
     }
 }

@@ -850,8 +850,11 @@ COMMAND_HANDLER(handle_flash_read_bank_command)
 	struct fileio *fileio;
 	uint32_t length;
 	size_t written;
+	size_t written_temp;
+	uint32_t chunks = 0;
+	uint32_t base_offset;
 
-	if (CMD_ARGC < 2 || CMD_ARGC > 4)
+	if (CMD_ARGC < 2 || CMD_ARGC > 5)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	struct duration bench;
@@ -876,8 +879,10 @@ COMMAND_HANDLER(handle_flash_read_bank_command)
 
 	length = p->size - offset;
 
-	if (CMD_ARGC > 3)
+	if (CMD_ARGC > 3) {
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[3], length);
+		if (length == 0) length = p->size - offset;
+	}
 
 	if (offset + length > p->size) {
 		LOG_ERROR("Length of %" PRIu32 " bytes with offset 0x%8.8" PRIx32
@@ -885,32 +890,74 @@ COMMAND_HANDLER(handle_flash_read_bank_command)
 		return ERROR_COMMAND_ARGUMENT_INVALID;
 	}
 
-	buffer = malloc(length);
-	if (!buffer) {
-		LOG_ERROR("Out of memory");
-		return ERROR_FAIL;
-	}
+	if (CMD_ARGC > 4)
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[4], chunks);
 
-	retval = flash_driver_read(p, buffer, offset, length);
-	if (retval != ERROR_OK) {
-		LOG_ERROR("Read error");
+	if (!chunks) {
+		buffer = malloc(length);
+		if (!buffer) {
+			LOG_ERROR("Out of memory");
+			return ERROR_FAIL;
+		}
+
+		retval = flash_driver_read(p, buffer, offset, length);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Read error");
+			free(buffer);
+			return retval;
+		}
+
+		retval = fileio_open(&fileio, CMD_ARGV[1], FILEIO_WRITE, FILEIO_BINARY);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Could not open file");
+			free(buffer);
+			return retval;
+		}
+
+		retval = fileio_write(fileio, length, buffer, &written);
+		fileio_close(fileio);
 		free(buffer);
-		return retval;
-	}
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Could not write file");
+			return ERROR_FAIL;
+		}
+	} else {
+		buffer = malloc(chunks);
 
-	retval = fileio_open(&fileio, CMD_ARGV[1], FILEIO_WRITE, FILEIO_BINARY);
-	if (retval != ERROR_OK) {
-		LOG_ERROR("Could not open file");
-		free(buffer);
-		return retval;
-	}
+		retval = fileio_open(&fileio, CMD_ARGV[1], FILEIO_WRITE, FILEIO_BINARY);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Could not open file");
+			free(buffer);
+			return retval;
+		}
 
-	retval = fileio_write(fileio, length, buffer, &written);
-	fileio_close(fileio);
-	free(buffer);
-	if (retval != ERROR_OK) {
-		LOG_ERROR("Could not write file");
-		return ERROR_FAIL;
+		written = 0;
+		base_offset = offset;
+
+		do {
+			retval = flash_driver_read(p, buffer, offset, length > chunks ? chunks : length);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Read error");
+				break;
+			}
+
+			retval = fileio_write(fileio, length > chunks ? chunks : length, buffer, &written_temp);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Could not write file");
+				break;
+			}
+					
+			written += written_temp;			
+					
+			offset += length > chunks ? chunks : length;
+			length -= length > chunks ? chunks : length;			
+		} while (length);
+
+		fileio_close(fileio);
+		free(buffer);		
+
+		offset = base_offset;
+		if (retval != ERROR_OK) return retval;
 	}
 
 	if (duration_measure(&bench) == ERROR_OK)
@@ -924,11 +971,14 @@ COMMAND_HANDLER(handle_flash_read_bank_command)
 
 COMMAND_HANDLER(handle_flash_read_bank_memory_command)
 {
-	uint32_t offset;
+	uint32_t offset = 0;
 	uint8_t *buffer;	
-	uint32_t length;		
+	uint32_t length;	
+	uint32_t temp_length;
+	uint32_t chunks = 0;	
+	uint32_t buffer_offset = 0;
 
-	if (CMD_ARGC < 1 || CMD_ARGC > 3)
+	if (CMD_ARGC < 1 || CMD_ARGC > 4)
 		return ERROR_COMMAND_SYNTAX_ERROR;	
 
 	struct flash_bank *p;
@@ -936,8 +986,6 @@ COMMAND_HANDLER(handle_flash_read_bank_memory_command)
 
 	if (retval != ERROR_OK)
 		return retval;
-
-	offset = 0;
 
 	if (CMD_ARGC > 1)
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], offset);
@@ -964,17 +1012,36 @@ COMMAND_HANDLER(handle_flash_read_bank_memory_command)
 		return ERROR_FAIL;
 	}
 
+	if (CMD_ARGC > 3)
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[3], chunks);
+
 	buffer = malloc(length);
 	if (!buffer) {
 		LOG_ERROR("Out of memory");
 		return ERROR_FAIL;
 	}
 
-	retval = flash_driver_read(p, buffer, offset, length);
-	if (retval != ERROR_OK) {
-		LOG_ERROR("Read error");
-		free(buffer);
-		return retval;
+	if (!chunks) {
+		retval = flash_driver_read(p, buffer, offset, length);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Read error");
+			free(buffer);
+			return retval;
+		}
+	} else {
+		temp_length = length;
+
+		do {
+			retval = flash_driver_read(p, buffer + buffer_offset, offset + buffer_offset, temp_length > chunks ? chunks : temp_length);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Read error");
+				free(buffer);
+				return retval;
+			}
+
+			buffer_offset += temp_length > chunks ? chunks : temp_length;
+			temp_length -= temp_length > chunks ? chunks : temp_length;
+		} while (temp_length);
 	}
 	
 	char *sep = "";
@@ -1360,9 +1427,9 @@ static const struct command_registration flash_exec_command_handlers[] = {
 		.name = "read_bank",
 		.handler = handle_flash_read_bank_command,
 		.mode = COMMAND_EXEC,
-		.usage = "bank_id filename [offset [length]]",
+		.usage = "bank_id filename [offset [length] [chunk_size]]",
 		.help = "Read binary data from flash bank to file. Allow optional "
-			"offset from beginning of the bank (defaults to zero).",
+			"offset from beginning of the bank (defaults to zero), length, and read chunk size (by default, it's unchunked.)",
 	},
 	{
 		.name = "read_bank_memory",

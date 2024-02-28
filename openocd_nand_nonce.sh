@@ -1,0 +1,3 @@
+#!/bin/bash
+src/openocd -d3 -c "adapter driver dummy; jtag_rclk 1; jtag newtap target cpu -irlen 4; target create target.cpu arm926ejs -endian little -chain-position target.cpu; gdb_port disabled; telnet_port pipe; nand device 0 nonce target.cpu; init" \
+-c "halt; nand dump_memory 0 0 8;"

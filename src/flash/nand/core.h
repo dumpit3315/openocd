@@ -59,6 +59,7 @@ struct nand_device {
 	int num_blocks;
 	struct nand_block *blocks;
 	struct nand_device *next;
+	int nand_type;
 };
 
 /* NAND Flash Manufacturer ID Codes
@@ -157,6 +158,14 @@ enum {
 	NAND_CMD_CACHEDPROG = 0x15,
 };
 
+/* NAND types */
+enum {
+	NAND_TYPE_NAND,
+	NAND_TYPE_ONENAND,	
+	NAND_TYPE_MMC,
+	NAND_TYPE_SUPERAND
+};
+
 /* Status bits */
 enum {
 	NAND_STATUS_FAIL = 0x01,
@@ -172,6 +181,7 @@ enum oob_formats {
 	NAND_OOB_RAW = 0x1,		/* raw OOB data (16 bytes for 512b page sizes, 64 bytes for
 					 *2048b page sizes) */
 	NAND_OOB_ONLY = 0x2,	/* only OOB data */
+	NAND_OOB_SEPERATE = 0x200,	
 	NAND_OOB_SW_ECC = 0x10,	/* when writing, use SW ECC (as opposed to no ECC) */
 	NAND_OOB_HW_ECC = 0x20,	/* when writing, use HW ECC (as opposed to no ECC) */
 	NAND_OOB_SW_ECC_KW = 0x40,	/* when writing, use Marvell's Kirkwood bootrom format */

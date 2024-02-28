@@ -28,6 +28,9 @@ static struct nand_flash_controller *nand_flash_controllers[] = {
 	&imx31_nand_flash_controller,
 	&at91sam9_nand_controller,
 	&nuc910_nand_controller,
+	&msm6250_nand_controller,
+	&msm6800_nand_controller,
+	&msm7200_nand_controller,
 	NULL
 };
 

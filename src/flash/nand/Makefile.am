@@ -28,7 +28,9 @@ NAND_DRIVERS = \
 	%D%/s3c2443.c \
 	%D%/s3c6400.c \
 	%D%/at91sam9.c \
-	%D%/nuc910.c
+	%D%/nuc910.c \
+	%D%/msm_nand.c \
+	%D%/generic.c
 
 NANDHEADERS = \
 	%D%/arm_io.h \
@@ -42,4 +44,5 @@ NANDHEADERS = \
 	%D%/mx3.h \
 	%D%/s3c24xx.h \
 	%D%/s3c24xx_regs.h \
-	%D%/nuc910.h
+	%D%/nuc910.h \
+	%D%/msm_nand.h
