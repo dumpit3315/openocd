@@ -119,6 +119,10 @@ contrib/loaders/flash/6025dump/*.lst
 contrib/loaders/flash/6025dump/*.map
 contrib/loaders/flash/6025dump/*.bin
 contrib/loaders/flash/6025dump/*.txt
+contrib/loaders/flash/a.out
+contrib/loaders/flash/a.bin
+contrib/loaders/flash/a-m3.out
+contrib/loaders/flash/a-m3.bin
 test
 tesst2
 nor_flash_test.bin

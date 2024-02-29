@@ -106,5 +106,6 @@ extern struct nand_flash_controller s3c6400_nand_controller;
 extern struct nand_flash_controller msm6250_nand_controller;
 extern struct nand_flash_controller msm6800_nand_controller;
 extern struct nand_flash_controller msm7200_nand_controller;
+extern struct nand_flash_controller generic_nand_controller;
 
 #endif /* OPENOCD_FLASH_NAND_DRIVER_H */

@@ -521,6 +521,7 @@ NAND_DEVICE_COMMAND_HANDLER(at91sam9_nand_device_command)
 	info->io.target = nand->target;
 	info->io.data = info->data;
 	info->io.op = ARM_NAND_NONE;
+	info->io.data_width = 8;
 
 	return ERROR_OK;
 }

@@ -191,6 +191,7 @@ static int nuc910_nand_init(struct nand_device *nand)
 	nuc910_nand->io.target = target;
 	nuc910_nand->io.data = NUC910_SMDATA;
 	nuc910_nand->io.op = ARM_NAND_NONE;
+	nuc910_nand->io.data_width = 8;
 
 	/* configure nand controller */
 	target_write_u32(target, NUC910_FMICSR, NUC910_FMICSR_SM_EN);

@@ -58,8 +58,7 @@ static int dummy_flash_erase(struct flash_bank *bank, unsigned int first,
 
 static int dummy_flash_write(struct flash_bank *bank, const uint8_t *buffer, uint32_t offset, uint32_t count)
 {
-	struct dummy_flash_priv *dummy_flash = bank->driver_priv;
-	unsigned int i;
+	struct dummy_flash_priv *dummy_flash = bank->driver_priv;	
 
 	/* check preconditions */
 	if (dummy_flash->buflen == 0 || dummy_flash->bufalign == 0)
@@ -80,8 +79,7 @@ static int dummy_flash_write(struct flash_bank *bank, const uint8_t *buffer, uin
 }
 
 static int dummy_flash_read(struct flash_bank *bank, uint8_t *buffer, uint32_t offset, uint32_t count)
-{
-	unsigned int i;
+{	
 	LOG_INFO("Reading %d bytes from 0x%x", count, offset);
 
 	memcpy(buffer, dummy_flash_contents + offset, count);

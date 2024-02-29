@@ -35,7 +35,8 @@ struct arm_nand_data {
 	/** Last operation executed using this struct. */
 	enum arm_nand_op op;
 
-	/* currently implicit:  data width == 8 bits (not 16) */
+	/* Specify the width used to read this data */
+	uint32_t data_width;
 };
 
 int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size);

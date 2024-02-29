@@ -10,6 +10,7 @@
         "arm.h": "c",
         "target.h": "c",
         "arm_io.h": "c",
-        "algorithm": "c"
+        "algorithm": "c",
+        "imp.h": "c"
     }
 }
