@@ -19,12 +19,8 @@ wr_reg = 0
 
 # callback for tracing instructions
 def hook_code(uc: Uc, address, size, user_data):    
-    if False:
-        print(">>> Tracing instruction at 0x%x, instruction size = 0x%x" %(address, size))
-        print("SP: 0x%x" %(uc.reg_read(UC_ARM_REG_SP)))
-    
-    
-    global status_reg, wr_reg
+    #print(">>> Tracing instruction at 0x%x, instruction size = 0x%x" %(address, size))
+    global status_reg, wr_reg     
     
     cs = Cs(CS_ARCH_ARM, CS_MODE_THUMB if uc.reg_read(UC_ARM_REG_PC) & 1 else CS_MODE_ARM)
     cs.detail = True
@@ -86,14 +82,18 @@ def test_arm():
         mu.ctl_exits_enabled(True)
         mu.ctl_set_exits([0])
 
-        mu.mem_map(0x0, 32 * 1024 * 1024)
+        mu.mem_map(0x10000000, 32 * 1024 * 1024)
 
         # map 2MB memory for this emulation
         mu.mem_map(0x14000000, 2 * 1024 * 1024)
 
         # write machine code to be emulated to memory
-        mu.mem_write(0x14000000, open("6025dump_ocl_read2.bin", "rb").read())              
-        mu.mem_write(0x0, open("6025dump_ocl_read2.bin", "rb").read()) 
+        mu.mem_write(0x14000000, open("anyloader.bin", "rb").read())              
+        mu.mem_write(0x10000000, open("anyloader.bin", "rb").read()) 
+        mu.mem_write(0x10000020, b"Q\0R\0Y\0\x02\0\0\0")
+        mu.mem_write(0x1000004e, (23).to_bytes(2, "little"))
+
+        mu.mem_write(0x14000020, b"\0\0\0\x10")        
 
         # initialize machine registers
         mu.reg_write(UC_ARM_REG_APSR, 0xFFFFFFFF) #All application flags turned on        
@@ -107,11 +107,11 @@ def test_arm():
         DEBUG = False
         
         def on_read(mu, access, address, size, value, data):
-            if True and address <= 0x02000000:
+            if True and address <= 0x12000000:
                 print("Read at", hex(address), size, mu.mem_read(address, size))
 
         def on_write(mu, access, address, size, value, data):
-            if DEBUG:
+            if True and address <= 0x12000000:
                 print("Write at", hex(address), size, hex(value))
 
         def on_error(mu, access, address, size, value, data):
@@ -194,52 +194,27 @@ if __name__ == '__main__':
     print("Buffer length:", hex(flash_buflen))
     print("Block size:", hex(flash_bufalign))
     
-    ''' 2: Read '''    
-    _dcc_write_host(0x0CD20007) # Length (Low)
-    _dcc_write_host(0x00010000) # Offset (Low) / Length (High)
-    _dcc_write_host(0x00000000) # Offset (High)
+    ''' 2: Read '''
+    _dcc_write_host(0x0CAD0007) # Length
+    _dcc_write_host(0x00000001) # Offset
     
     while (_dcc_read_status_host() & 2) == 0: time.sleep(0.1)
     assert _dcc_read_host() == 0x0ACD0000, "CMD response is not OK"
     
     while (_dcc_read_status_host() & 2) == 0: time.sleep(0.1)
-    buffer_size = _dcc_read_host()
+    read_width = _dcc_read_host()
     
     print("OCL Simulator Read command:\n")
-    print("Buffer_Size:", buffer_size)
+    print("Read Width:", read_width)
     
     for p in range(8):
         chksum = 0xC100CD0C
-        temp_data = bytearray()
-        
-        while True:
+        for c in range(flash_bufalign // read_width):
             while (_dcc_read_status_host() & 2) == 0: time.sleep(0.01)
             data_recv = _dcc_read_host()
-            if (data_recv >> 24) == 0xff:
-                chksum ^= data_recv & 0xffffff
-                temp_data += ((data_recv) & 0xff).to_bytes(1, "little")
-                temp_data += ((data_recv >> 8) & 0xff).to_bytes(1, "little")
-                temp_data += ((data_recv >> 16) & 0xff).to_bytes(1, "little")
-                
-            elif (data_recv >> 24) == 0x2:
-                chksum ^= data_recv & 0xff
-                temp_data += ((data_recv) & 0xff).to_bytes(1, "little")                
-                break
-                
-            elif (data_recv >> 24) == 0x1:
-                chksum ^= data_recv & 0xffff
-                temp_data += ((data_recv) & 0xff).to_bytes(1, "little")
-                temp_data += ((data_recv >> 8) & 0xff).to_bytes(1, "little")
-                break
-                
-            elif (data_recv >> 24) == 0x0:
-                chksum ^= data_recv & 0xffffff
-                temp_data += ((data_recv) & 0xff).to_bytes(1, "little")
-                temp_data += ((data_recv >> 8) & 0xff).to_bytes(1, "little")
-                temp_data += ((data_recv >> 16) & 0xff).to_bytes(1, "little")
-                break
+            chksum ^= data_recv
             
-        print("Compressed data:", temp_data)
+            print(f"Data {c}: {hex(data_recv)}")
             
         while (_dcc_read_status_host() & 2) == 0: time.sleep(0.1)
         received_checksum = _dcc_read_host()
@@ -253,4 +228,4 @@ if __name__ == '__main__':
         assert _dcc_read_host() == 0x0ACD0000, "CMD response is not OK"
         
         print(f"Read pass {p+1} end")
-        time.sleep(5)
+        time.sleep(2)

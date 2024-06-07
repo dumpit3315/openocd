@@ -5,7 +5,7 @@
 #
 
 TRGT = arm-none-eabi-
-CC   = $(TRGT)gcc -DREAD_AT_0x12000000_AFTER_8MB
+CC   = $(TRGT)gcc -DENABLE_OCL_READ2=1 -fPIC -fPIE
 CP   = $(TRGT)objcopy
 AS   = $(TRGT)gcc -x assembler-with-cpp
 HEX  = $(CP) -O ihex
@@ -38,13 +38,13 @@ DLIBS =
 #
 
 # Define project name here
-PROJECT = 6025dump_ocl_0x12_after_8mb
+PROJECT = anyloader
 
 # Define linker script file here
-LDSCRIPT= 6025dump_ram.ld
+LDSCRIPT = anydump_ram.ld
 
 # List all user C define here, like -D_DEBUG=1
-UDEFS = 
+UDEFS =
 
 # Define ASM defines here
 UADEFS =

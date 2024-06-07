@@ -27,40 +27,37 @@
    I_BIT          = 0x80      /* disable IRQ when I bit is set */
    F_BIT          = 0x40      /* disable IRQ when I bit is set */
 
+   /*
    .section .vectors,"ax"
    .code 32
+   */
 
 /****************************************************************************/
 /*               Vector table and reset entry                               */
 /****************************************************************************/
-_vectors:
-   ldr pc, ResetAddr    /* Reset                 */
-   ldr pc, UndefAddr    /* Undefined instruction */
-   ldr pc, SWIAddr      /* Software interrupt    */
-   ldr pc, PAbortAddr   /* Prefetch abort        */
-   ldr pc, DAbortAddr   /* Data abort            */
-   ldr pc, ReservedAddr /* Reserved              */
-   ldr pc, IRQAddr      /* IRQ interrupt         */
-   ldr pc, FIQAddr      /* FIQ interrupt         */
-
-
-ResetAddr:     .word ResetHandler
-UndefAddr:     .word UndefHandler
-SWIAddr:       .word SWIHandler
-PAbortAddr:    .word PAbortHandler
-DAbortAddr:    .word DAbortHandler
-ReservedAddr:  .word 0
-IRQAddr:       .word IRQHandler
-FIQAddr:       .word FIQHandler
-
-   .ltorg
 
    .section .init, "ax"
    .code 32
 
+_vectors:
+   b ResetHandler    /* Reset                 */
+   b UndefHandler    /* Undefined instruction */
+   b SWIHandler      /* Software interrupt    */
+   b PAbortHandler   /* Prefetch abort        */
+   b DAbortHandler   /* Data abort            */
+   b 0               /* Reserved              */
+   b IRQHandler      /* IRQ interrupt         */
+   b FIQHandler      /* FIQ interrupt         */
+
+   .ltorg
+
    .global ResetHandler
    .global ExitFunction
+   .global NorStartAddress
    .extern main
+   .extern __stack_und_end
+
+NorStartAddress:  .word 0x12345678
 /****************************************************************************/
 /*                           Reset handler                                  */
 /****************************************************************************/
@@ -68,28 +65,38 @@ ResetHandler:
    /*
     * Setup a stack for each mode
     */
+   mov   r0, #0
+   adr   r0, _vectors
+
    msr   CPSR_c, #ARM_MODE_UNDEF | I_BIT | F_BIT   /* Undefined Instruction Mode */
    ldr   sp, =__stack_und_end
+   add   sp, r0
 
    msr   CPSR_c, #ARM_MODE_ABORT | I_BIT | F_BIT   /* Abort Mode */
    ldr   sp, =__stack_abt_end
+   add   sp, r0
 
    msr   CPSR_c, #ARM_MODE_FIQ | I_BIT | F_BIT     /* FIQ Mode */
    ldr   sp, =__stack_fiq_end
+   add   sp, r0
 
    msr   CPSR_c, #ARM_MODE_IRQ | I_BIT | F_BIT     /* IRQ Mode */
    ldr   sp, =__stack_irq_end
+   add   sp, r0
 
    msr   CPSR_c, #ARM_MODE_SVC | I_BIT | F_BIT     /* Supervisor Mode */
    ldr   sp, =__stack_svc_end
-
+   add   sp, r0
 
    /*
     * Clear .bss section
     */
-   ldr   r1, =__bss_start
-   ldr   r2, =__bss_end
-   ldr   r3, =0
+   ldr   r1, =__bss_start   
+   ldr   r2, =__bss_end   
+   mov   r3, #0
+   
+   add   r1, r0
+   add   r2, r0
 bss_clear_loop:
    cmp   r1, r2
    strne r3, [r1], #+4
@@ -102,12 +109,16 @@ bss_clear_loop:
    mrs   r0, cpsr
    bic   r0, r0, #I_BIT | F_BIT     /* Enable FIQ and IRQ interrupt */
    msr   cpsr, r0
-
-   mov   r0, #0 /* No arguments */
+   
    mov   r1, #0 /* No arguments */
-   ldr   r2, =main
-   mov   lr, pc
-   bx    r2     /* And jump... */
+   mov   r2, #0 /* No arguments */
+   mov   r3, #0 /* No arguments */
+
+   mov   r0, #0
+   adr   r0, NorStartAddress
+   ldr   r0, [r0]
+   
+   b main
 
 ExitFunction:
    nop

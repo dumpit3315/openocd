@@ -37,6 +37,9 @@ struct arm_nand_data {
 
 	/* Specify the width used to read this data */
 	uint32_t data_width;
+
+	/* Specify the width for the data contained during read */
+	uint32_t read_width;
 };
 
 int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size);

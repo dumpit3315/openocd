@@ -113,12 +113,17 @@ GTAGS
 compile_commands.json
 
 # 6025load additions
-contrib/loaders/flash/6025dump/*.elf
-contrib/loaders/flash/6025dump/*.hex
-contrib/loaders/flash/6025dump/*.lst
-contrib/loaders/flash/6025dump/*.map
-contrib/loaders/flash/6025dump/*.bin
-contrib/loaders/flash/6025dump/*.txt
+contrib/loaders/flash/norloader/*.elf
+contrib/loaders/flash/norloader/*.hex
+contrib/loaders/flash/norloader/*.lst
+contrib/loaders/flash/norloader/*.map
+contrib/loaders/flash/norloader/*.bin
+contrib/loaders/flash/norloader/*.txt
+contrib/loaders/flash/norloader/old/*.elf
+contrib/loaders/flash/norloader/old/*.hex
+contrib/loaders/flash/norloader/old/*.lst
+contrib/loaders/flash/norloader/old/*.map
+contrib/loaders/flash/norloader/old/*.bin
 contrib/loaders/flash/a.out
 contrib/loaders/flash/a.bin
 contrib/loaders/flash/a-m3.out
@@ -126,3 +131,6 @@ contrib/loaders/flash/a-m3.bin
 test
 tesst2
 nor_flash_test.bin
+*_nand.bin
+test_nand_dump.bin
+dumpoper.txt

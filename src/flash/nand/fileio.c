@@ -77,6 +77,8 @@ int nand_fileio_start(struct command_invocation *cmd,
 		} else if (nand->page_size == 2048)   {
 			state->oob_size = 64;
 			state->eccpos = nand_oob_64.eccpos;
+		} else if (nand->page_size == 4096 && nand->nand_type == NAND_TYPE_ONENAND)   {
+			state->oob_size = 128;			
 		}
 		state->oob = malloc(state->oob_size);
 	}
@@ -189,6 +191,10 @@ int nand_fileio_read(struct nand_device *nand, struct nand_fileio_state *s)
 
 	if (s->oob_format & NAND_OOB_SW_ECC) {
 		uint8_t ecc[3];
+		if (nand->nand_type != NAND_TYPE_NAND) {
+			LOG_ERROR("Only Plain NAND support software based ECC");
+			return ERROR_FLASH_OPER_UNSUPPORTED;
+		}
 		memset(s->oob, 0xff, s->oob_size);
 		for (uint32_t i = 0, j = 0; i < s->page_size; i += 256) {
 			nand_calculate_ecc(nand, s->page + i, ecc);
@@ -204,6 +210,10 @@ int nand_fileio_read(struct nand_device *nand, struct nand_fileio_state *s)
 		 * of 10 bytes per 512-byte data block.
 		 */
 		uint8_t *ecc = s->oob + s->oob_size - s->page_size / 512 * 10;
+		if (nand->nand_type != NAND_TYPE_NAND) {
+			LOG_ERROR("Only Plain NAND support software based ECC");
+			return ERROR_FLASH_OPER_UNSUPPORTED;
+		}
 		memset(s->oob, 0xff, s->oob_size);
 		for (uint32_t i = 0; i < s->page_size; i += 512) {
 			nand_calculate_ecc_kw(nand, s->page + i, ecc);

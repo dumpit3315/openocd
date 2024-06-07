@@ -290,7 +290,7 @@ static int nand_poll_ready(struct nand_device *nand, int timeout)
 
 int nand_probe(struct nand_device *nand)
 {
-	uint8_t manufacturer_id, device_id;
+	uint16_t manufacturer_id, device_id;
 	uint8_t id_buff[6] = { 0 };	/* zero buff to silence false warning
 					 * from clang static analyzer */
 	int retval;
@@ -330,7 +330,7 @@ int nand_probe(struct nand_device *nand)
 	nand->controller->command(nand, NAND_CMD_READID);
 	nand->controller->address(nand, 0x0);
 
-	if (nand->bus_width == 8) {
+	if (nand->nand_type != NAND_TYPE_NAND) {
 		nand->controller->read_data(nand, &manufacturer_id);
 		nand->controller->read_data(nand, &device_id);
 	} else {
@@ -341,13 +341,34 @@ int nand_probe(struct nand_device *nand)
 		device_id = data_buf & 0xff;
 	}
 
-	for (i = 0; nand_flash_ids[i].name; i++) {
-		if (nand_flash_ids[i].id == device_id &&
-				(nand_flash_ids[i].mfr_id == manufacturer_id ||
-				nand_flash_ids[i].mfr_id == 0)) {
-			nand->device = &nand_flash_ids[i];
+	switch (nand->nand_type) {
+		case NAND_TYPE_NAND:
+			for (i = 0; nand_flash_ids[i].name; i++) {
+				if (nand_flash_ids[i].id == device_id &&
+						(nand_flash_ids[i].mfr_id == manufacturer_id ||
+						nand_flash_ids[i].mfr_id == 0)) {
+					nand->device = &nand_flash_ids[i];
+					break;
+				}
+			}
 			break;
-		}
+		case NAND_TYPE_ONENAND:
+			nand->device = calloc(1, sizeof(struct nand_info));
+			if (!nand->device) {
+				LOG_ERROR("no memory for nand device");
+				return ERROR_NAND_OPERATION_FAILED;
+			}
+			nand->device->page_size = nand->page_size;
+			nand->device->id = device_id;			
+			nand->device->name = "OneNAND";
+			nand->device->options =  LP_OPTIONS16;
+			nand->device->chip_size = 2 << ((nand->page_size == 4096 ? 4 : 3) + ((device_id >> 4) & 0xf));
+			//nand->device->erase_size = nand->page_size == 0x1000 ? 0x80000 : 0x20000;			
+			nand->device->erase_size = nand->page_size * 64;			
+			break;
+		default:
+			LOG_ERROR("unsupported nand type");
+			return ERROR_NAND_OPERATION_FAILED;
 	}
 
 	for (i = 0; nand_manuf_ids[i].name; i++) {
@@ -784,15 +805,65 @@ int nand_read_page_raw(struct nand_device *nand, uint32_t page,
 {
 	int retval;
 
-	retval = nand_page_command(nand, page, NAND_CMD_READ0, !data);
-	if (retval != ERROR_OK)
-		return retval;
+	if (nand->nand_type != NAND_TYPE_NAND) {
+		LOG_ERROR("Raw mode is not supported for non NAND devices");
+		return ERROR_NAND_OPERATION_NOT_SUPPORTED;
+	} else if (nand->controller->raw_unsupported) {
+		LOG_ERROR("Raw mode is not supported for this controller");
+		return ERROR_NAND_OPERATION_NOT_SUPPORTED;
+	}
 
-	if (data)
-		nand_read_data_page(nand, data, data_size);
+	if (nand->bus_width == 8 && nand->page_size <= 512 && nand->controller->read1_supported) {
+		if (data) {
+			retval = nand_page_command(nand, page, NAND_CMD_READ0, false);
+			if (retval != ERROR_OK)
+				return retval;
+			
+			nand_read_data_page(nand, data, data_size > 256 ? 256 : data_size);
 
-	if (oob)
-		nand_read_data_page(nand, oob, oob_size);
+			if (data_size > 256) {
+				retval = nand_page_command(nand, page, NAND_CMD_READ1, false);
+				if (retval != ERROR_OK)
+					return retval;
+				
+				nand_read_data_page(nand, data + 256, data_size - 256);
+			}
+		}
+
+		if (oob) {
+			retval = nand_page_command(nand, page, NAND_CMD_READOOB, false);
+			if (retval != ERROR_OK)
+				return retval;		
+			
+			nand_read_data_page(nand, oob, oob_size);
+		}
+	} else if (nand->bus_width == 16 && nand->page_size <= 512 && nand->controller->read1_supported) {
+		if (data) {
+			retval = nand_page_command(nand, page, NAND_CMD_READ0, false);
+			if (retval != ERROR_OK)
+				return retval;
+			
+			nand_read_data_page(nand, data, data_size);			
+		}
+
+		if (oob) {
+			retval = nand_page_command(nand, page, NAND_CMD_READOOB, false);
+			if (retval != ERROR_OK)
+				return retval;		
+			
+			nand_read_data_page(nand, oob, oob_size);
+		}
+	} else {
+		retval = nand_page_command(nand, page, NAND_CMD_READ0, !data);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if (data)
+			nand_read_data_page(nand, data, data_size);	
+		
+		if (oob)
+			nand_read_data_page(nand, oob, oob_size);
+	}
 
 	return ERROR_OK;
 }
@@ -861,25 +932,117 @@ int nand_write_page_raw(struct nand_device *nand, uint32_t page,
 {
 	int retval;
 
-	retval = nand_page_command(nand, page, NAND_CMD_SEQIN, !data);
-	if (retval != ERROR_OK)
-		return retval;
-
-	if (data) {
-		retval = nand_write_data_page(nand, data, data_size);
-		if (retval != ERROR_OK) {
-			LOG_ERROR("Unable to write data to NAND device");
-			return retval;
-		}
+	if (nand->nand_type != NAND_TYPE_NAND) {
+		LOG_ERROR("Raw mode is not supported for non NAND devices");
+		return ERROR_NAND_OPERATION_NOT_SUPPORTED;
+	} else if (nand->controller->raw_unsupported) {
+		LOG_ERROR("Raw mode is not supported for this controller");
+		return ERROR_NAND_OPERATION_NOT_SUPPORTED;
 	}
 
-	if (oob) {
-		retval = nand_write_data_page(nand, oob, oob_size);
-		if (retval != ERROR_OK) {
-			LOG_ERROR("Unable to write OOB data to NAND device");
-			return retval;
-		}
-	}
+	if (nand->bus_width == 8 && nand->page_size <= 512 && nand->controller->read1_supported) {
+		if (data) {
+			nand->controller->command(nand, NAND_CMD_READ0);
+			retval = nand_page_command(nand, page, NAND_CMD_SEQIN, false);
+			if (retval != ERROR_OK)
+				return retval;
+		
+			retval = nand_write_data_page(nand, data, data_size > 256 ? 256 : data_size);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Unable to write data to NAND device");
+				return retval;
+			}
 
-	return nand_write_finish(nand);
+			retval = nand_write_finish(nand);
+			if (retval != ERROR_OK) return retval;
+
+			if (data_size > 256) {
+				nand->controller->command(nand, NAND_CMD_READ1);
+				retval = nand_page_command(nand, page, NAND_CMD_SEQIN, false);
+				if (retval != ERROR_OK)
+					return retval;
+			
+				retval = nand_write_data_page(nand, data + 256, data_size - 256);
+				if (retval != ERROR_OK) {
+					LOG_ERROR("Unable to write data to NAND device");
+					return retval;
+				}
+
+				retval = nand_write_finish(nand);
+				if (retval != ERROR_OK) return retval;
+			}
+		}
+
+		if (oob) {
+			nand->controller->command(nand, NAND_CMD_READOOB);
+			retval = nand_page_command(nand, page, NAND_CMD_SEQIN, false);
+			if (retval != ERROR_OK)
+				return retval;
+
+			retval = nand_write_data_page(nand, oob, oob_size);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Unable to write OOB data to NAND device");
+				return retval;
+			}
+
+			retval = nand_write_finish(nand);
+			if (retval != ERROR_OK) return retval;
+		}
+	} else if (nand->bus_width == 16 && nand->page_size <= 512 && nand->controller->read1_supported) {
+		if (data) {
+			nand->controller->command(nand, NAND_CMD_READ0);
+			retval = nand_page_command(nand, page, NAND_CMD_SEQIN, false);
+			if (retval != ERROR_OK)
+				return retval;
+		
+			retval = nand_write_data_page(nand, data, data_size);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Unable to write data to NAND device");
+				return retval;
+			}
+
+			retval = nand_write_finish(nand);
+			if (retval != ERROR_OK) return retval;
+		}
+
+		if (oob) {
+			nand->controller->command(nand, NAND_CMD_READOOB);
+			retval = nand_page_command(nand, page, NAND_CMD_SEQIN, false);
+			if (retval != ERROR_OK)
+				return retval;
+
+			retval = nand_write_data_page(nand, oob, oob_size);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Unable to write OOB data to NAND device");
+				return retval;
+			}
+
+			retval = nand_write_finish(nand);
+			if (retval != ERROR_OK) return retval;
+		}
+	} else {
+		retval = nand_page_command(nand, page, NAND_CMD_SEQIN, !data);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if (data) {
+			retval = nand_write_data_page(nand, data, data_size);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Unable to write data to NAND device");
+				return retval;
+			}
+		}
+
+		if (oob) {
+			retval = nand_write_data_page(nand, oob, oob_size);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Unable to write OOB data to NAND device");
+				return retval;
+			}
+		}
+
+		return nand_write_finish(nand);
+	}	
+
+	return ERROR_OK;
 }

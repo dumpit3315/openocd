@@ -133,8 +133,8 @@ COMMAND_HANDLER(handle_nand_probe_command)
 
 	retval = nand_probe(p);
 	if (retval == ERROR_OK) {
-		command_print(CMD, "NAND flash device '%s (%s)' found",
-			p->device->name, p->manufacturer->name);
+		command_print(CMD, "NAND flash device '%s (%s)' found @ 0x%04X/0x%04X (%dMB)",
+			p->device->name, p->manufacturer->name, p->manufacturer->id, p->device->id, p->device->chip_size);
 	}
 
 	return retval;
@@ -407,7 +407,7 @@ COMMAND_HANDLER(handle_nand_dump_memory_command)
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], page);
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], count);
 
-	tot_size = (p->page_size * count) + ((p->page_size <= 512 ? 16 : 64) * count);
+	tot_size = (p->page_size * count) + ((p->page_size <= 512 ? 16 : ((p->page_size >= 4096 && p->nand_type == NAND_TYPE_ONENAND) ? 128 : 64)) * count);
 	oob_base = p->page_size * count;
 
 	buffer = malloc(tot_size);
@@ -417,7 +417,7 @@ COMMAND_HANDLER(handle_nand_dump_memory_command)
 	}
 
 	while (count--) {		
-		retval = nand_read_page(p, page++, buffer + data_pos, p->page_size, buffer + oob_base + oob_pos, p->page_size <= 512 ? 16 : 64);
+		retval = nand_read_page(p, page++, buffer + data_pos, p->page_size, buffer + oob_base + oob_pos, p->page_size <= 512 ? 16 : ((p->page_size >= 4096 && p->nand_type == NAND_TYPE_ONENAND) ? 128 : 64));
 
 		if (retval != ERROR_OK) {
 			command_print(CMD, "reading NAND flash page failed");
@@ -428,7 +428,7 @@ COMMAND_HANDLER(handle_nand_dump_memory_command)
 		LOG_DEBUG("Copy NAND buffer to 0x%x, oob to 0x%x", data_pos, oob_base + oob_pos);
 
 		data_pos += p->page_size;
-		oob_pos += p->page_size <= 512 ? 16 : 64;
+		oob_pos += p->page_size <= 512 ? 16 : ((p->page_size >= 4096 && p->nand_type == NAND_TYPE_ONENAND) ? 128 : 64);
 	}
 
 	char *sep = "";

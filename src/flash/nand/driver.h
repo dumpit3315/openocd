@@ -66,6 +66,12 @@ struct nand_flash_controller {
 
 	/** Check if the NAND device is ready for more instructions with timeout. */
 	int (*nand_ready)(struct nand_device *nand, int timeout);
+
+	/** Whether it supports READ1 */
+	bool read1_supported;
+
+	/** Whether to not support RAW mode */
+	bool raw_unsupported;
 };
 
 #define NAND_DEVICE_COMMAND_HANDLER(name) static __NAND_DEVICE_COMMAND(name)
@@ -107,5 +113,9 @@ extern struct nand_flash_controller msm6250_nand_controller;
 extern struct nand_flash_controller msm6800_nand_controller;
 extern struct nand_flash_controller msm7200_nand_controller;
 extern struct nand_flash_controller generic_nand_controller;
+extern struct nand_flash_controller dummy_nand_controller;
+extern struct nand_flash_controller pnx6_nand_controller;
+extern struct nand_flash_controller pxa3_nand_controller;
+extern struct nand_flash_controller onenand_controller;
 
 #endif /* OPENOCD_FLASH_NAND_DRIVER_H */

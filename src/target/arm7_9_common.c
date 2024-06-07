@@ -3159,7 +3159,7 @@ int arm7_9_init_arch_info(struct target *target, struct arm7_9_common *arm7_9)
 	arm7_9->arm7_additional_nop = false;
 
 	arm7_9->fast_memory_access_additional_execute = true;
-	arm7_9->fast_memory_access_delay = 1536;
+	arm7_9->fast_memory_access_delay = 128;
 	// arm7_9->fast_memory_access_no_embeddedice_read = false;
 
 	arm->arch_info = arm7_9;

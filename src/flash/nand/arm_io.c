@@ -86,7 +86,7 @@ int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size)
 	struct armv7m_algorithm armv7m_algo;
 	void *arm_algo;
 	struct arm *arm = target->arch_info;
-	struct reg_param reg_params[4];
+	struct reg_param reg_params[5];
 	uint32_t target_buf;
 	uint32_t exit_var = 0;
 	int retval;
@@ -95,59 +95,139 @@ int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size)
 	 *  r0	NAND data address (byte wide)
 	 *  r1	buffer address
 	 *  r2	buffer length
-	 *  r3  data width
+	 *  r3  width size
+	 *  r4  data read size
 	 *
 	 */
 	static const uint32_t code_armv4_5[] = {
 		/* Load */
-		0xE3530020,
-		0x0A00000B,
-		0xE3530010,
-		0x0A000004,
-		/* 8 */
-		0xE4D14001,
-		0xE5C04000,
-		0xE2522001,
-		0x1AFFFFFB,
-		0xE1200070,
-		/* 16 */
-		0xE0D140B1,
-		0xE1C040B0,
-		0xE2522002,
-		0x1AFFFFFB,
-		0xE1200070,
-		/* 32 */
-		0xE4914001,
-		0xE5804000,
-		0xE2522004,
-		0x1AFFFFFB,
-		0xE1200070,
+		0xe3540010,
+		0x0a000025,
+		0xe3540008,
+		0x0a000012,
+		/* Load0 */
+		0xe3530020,
+		0x0a00000b,
+		0xe3530010,
+		0x0a000004,
+		/* Load0-8 */
+		0xe4d1a001,
+		0xe5c0a000,
+		0xe2522001,
+		0x1afffffb,
+		0xe1200070,
+		/* Load0-16 */
+		0xe0d1a0b2,
+		0xe1c0a0b0,
+		0xe2522002,
+		0x1afffffb,
+		0xe1200070,
+		/* Load0-32 */
+		0xe491a004,
+		0xe580a000,
+		0xe2522004,
+		0x1afffffb,
+		0xe1200070,
+		/* Load8 */
+		0xe3530020,
+		0x0a000008,
+		0xe3530010,
+		0x0a000000,
+		/* Load8-8 */
+		0xeaffffeb,
+		/* Load8-16 */
+		0xe4d1a001,
+		0xe20aa0ff,
+		0xe1c0a0b0,
+		0xe2522001,
+		0x1afffffa,
+		0xe1200070,
+		/* Load8-32 */
+		0xe4d1a001,
+		0xe20aa0ff,
+		0xe580a000,
+		0xe2522001,
+		0x1afffffa,
+		0xe1200070,
+		/* Load16 */
+		0xe3530020,
+		0x0a000003,
+		0xe3530010,
+		0x0a000000,
+		/* Load16-8 */
+		0xeaffffda,
+		/* Load16-16 */
+		0xeaffffde,
+		/* Load16-32 */
+		0xe3a0bcff,
+		0xe38bb0ff,
+		/* Load16-32Loop */
+		0xe0d1a0b2,
+		0xe00aa00b,
+		0xe580a000,
+		0xe2522002,
+		0x1afffffa,
+		0xe1200070,	
 	};
 
 	/* Inputs:
 	 *  r0	NAND data address (byte wide)
 	 *  r1	buffer address
 	 *  r2	buffer length
-	 *  r3  data width
+	 *  r3  width size
+	 *  r4  data read size
 	 *
 	 * see contrib/loaders/flash/armv7m_io.s for src
 	 */
 	static const uint32_t code_armv7m[] = {
 		/* Load */
-		0xd00d2b20,
-		0xd0052b10,
-		/* 8 */
-		0x4b01f811,
-		0x3a017004,
-		0xbe00d1fa,
-		/* 16 */
-		0x4b01f831,
-		0x3a028004,
-		0xbe00d1fa,
-		/* 32 */
-		0x4b01f851,
-		0x3a046004,
-		0xbe00d1fa,
+		0xd0312c10,
+		0xd0182c08,
+		/* Load0 */
+		0xd00f2b20,
+		0xd0062b10,
+		/* Load0-8 */
+		0xab01f811,
+		0xa000f880,
+		0xd1f93a01,
+		/* Load0-16 */
+		0xf831be00,
+		0xf8a0ab02,
+		0x3a02a000,
+		0xbe00d1f9,
+		/* Load0-32 */
+		0xab04f851,
+		0xa000f8c0,
+		0xd1f93a04,
+		/* Load8 */
+		0x2b20be00,
+		0x2b10d00b,
+		/* Load8-8 */
+		0xe7e5d000,
+		/* Load8-16 */
+		0xab01f811,
+		0x0afff00a,
+		0xa000f8a0,
+		0xd1f73a01,
+		/* Load8-32 */
+		0xf811be00,
+		0xf00aab01,
+		0xf8c00aff,
+		0x3a01a000,
+		0xbe00d1f7,
+		/* Load16 */
+		0xd0032b20,
+		0xd0002b10,
+		/* Load16-8_16 */
+		0xe7d4e7ce,
+		/* Load16-32 */
+		0x4b7ff44f,
+		0x0bfff04b,
+		0xab02f831,
+		0x0a0bea0a,
+		0xa000f8c0,
+		0xd1f73a02,
+		0xbf00be00
 	};
 
 	int target_code_size = 0;
@@ -193,11 +273,13 @@ int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size)
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_IN);
 	init_reg_param(&reg_params[2], "r2", 32, PARAM_IN);
 	init_reg_param(&reg_params[3], "r3", 32, PARAM_IN);
+	init_reg_param(&reg_params[4], "r4", 32, PARAM_IN);
 
 	buf_set_u32(reg_params[0].value, 0, 32, nand->data);
 	buf_set_u32(reg_params[1].value, 0, 32, target_buf);
 	buf_set_u32(reg_params[2].value, 0, 32, size);
 	buf_set_u32(reg_params[3].value, 0, 32, nand->data_width);
+	buf_set_u32(reg_params[4].value, 0, 32, nand->read_width);
 
 	/* armv4 must exit using a hardware breakpoint */
 	if (arm->arch == ARM_ARCH_V4)
@@ -232,7 +314,7 @@ int arm_nandread(struct arm_nand_data *nand, uint8_t *data, uint32_t size)
 	struct armv7m_algorithm armv7m_algo;
 	void *arm_algo;
 	struct arm *arm = target->arch_info;
-	struct reg_param reg_params[4];
+	struct reg_param reg_params[5];
 	uint32_t target_buf;
 	uint32_t exit_var = 0;
 	int retval;
@@ -241,59 +323,139 @@ int arm_nandread(struct arm_nand_data *nand, uint8_t *data, uint32_t size)
 	 *  r0	buffer address
 	 *  r1	NAND data address (byte wide)
 	 *  r2	buffer length
-	 *  r3  data width
+	 *  r3  width size 
+	 *  r4  data write size
 	 *
 	 */
 	static const uint32_t code_armv4_5[] = {
 		/* Load */
-		0xE3530020,
-		0x0A00000B,
-		0xE3530010,
-		0x0A000004,
-		/* 8 */
-		0xE5D14000,
-		0xE4C04001,
-		0xE2522001,
-		0x1AFFFFFB,
-		0xE1200070,
-		/* 16 */
-		0xE1D140B0,
-		0xE0C040B1,
-		0xE2522002,
-		0x1AFFFFFB,
-		0xE1200070,
-		/* 32 */
-		0xE5914000,
-		0xE4804001,
-		0xE2522004,
-		0x1AFFFFFB,
-		0xE1200070,
+		0xe3540010,
+		0x0a000025,
+		0xe3540008,
+		0x0a000012,
+		/* Load0 */
+		0xe3530020,
+		0x0a00000b,
+		0xe3530010,
+		0x0a000004,
+		/* Load0-8 */
+		0xe5d1a000,
+		0xe4c0a001,
+		0xe2522001,
+		0x1afffffb,
+		0xe1200070,
+		/* Load0-16 */
+		0xe1d1a0b0,
+		0xe0c0a0b2,
+		0xe2522002,
+		0x1afffffb,
+		0xe1200070,
+		/* Load0-32 */
+		0xe591a000,
+		0xe480a004,
+		0xe2522004,
+		0x1afffffb,
+		0xe1200070,
+		/* Load8 */
+		0xe3530020,
+		0x0a000008,
+		0xe3530010,
+		0x0a000000,
+		/* Load8-8 */
+		0xeaffffeb,
+		/* Load8-16 */
+		0xe1d1a0b0,
+		0xe20aa0ff,
+		0xe4c0a001,
+		0xe2522001,
+		0x1afffffa,
+		0xe1200070,
+		/* Load8-32 */
+		0xe591a000,
+		0xe20aa0ff,
+		0xe4c0a001,
+		0xe2522001,
+		0x1afffffa,
+		0xe1200070,
+		/* Load16 */
+		0xe3530020,
+		0x0a000003,
+		0xe3530010,
+		0x0a000000,
+		/* Load16-8 */
+		0xeaffffda,
+		/* Load16-16 */
+		0xeaffffde,
+		/* Load16-32 */
+		0xe3a0bcff,
+		0xe38bb0ff,
+		/* Load16-32Loop */
+		0xe591a000,
+		0xe00aa00b,
+		0xe0c0a0b2,
+		0xe2522002,
+		0x1afffffa,
+		0xe1200070,
 	};
 
 	/* Inputs:
 	 *  r0	buffer address
 	 *  r1	NAND data address (byte wide)
 	 *  r2	buffer length
-	 *  r3  data width
+	 *  r3  width size 
+	 *  r4  data write size
 	 *
 	 * see contrib/loaders/flash/armv7m_io.s for src
 	 */
 	static const uint32_t code_armv7m[] = {
 		/* Load */
-		0xd00d2b20,
-		0xd0052b10,
-		/* 8 */
-		0xf800780c,
-		0x3a014b01,
-		0xbe00d1fa,
-		/* 16 */
-		0xf820880c,
-		0x3a024b01,
-		0xbe00d1fa,
-		/* 32 */
-		0xf840680c,
-		0x3a044b01,
-		0xbe00d1fa,
+		0xd0312c10,
+		0xd0182c08,
+		/* Load0 */
+		0xd00f2b20,
+		0xd0062b10,
+		/* Load0-8 */
+		0xa000f891,
+		0xab01f800,
+		0xd1f93a01,
+		/* Load0-16 */
+		0xf8b1be00,		
+		0xf820a000,
+		0x3a02ab02,
+		0xbe00d1f9,
+		/* Load0-32 */
+		0xa000f8d1,
+		0xab04f840,
+		0xd1f93a04,
+		/* Load8 */
+		0x2b20be00,		
+		0x2b10d00b,
+		/* Load8-8 */
+		0xe7e5d000,
+		/* Load8-16 */
+		0xa000f8b1,
+		0x0afff00a,
+		0xab01f800,
+		0xd1f73a01,
+		/* Load8-32 */
+		0xf8d1be00,
+		0xf00aa000,
+		0xf8000aff,
+		0x3a01ab01,
+		0xbe00d1f7,
+		/* Load16 */
+		0xd0032b20,
+		0xd0002b10,
+		/* Load16-8_16 */
+		0xe7d4e7ce,
+		/* Load16-32 */
+		0x4b7ff44f,
+		0x0bfff04b,
+		0xa000f8d1,
+		0x0a0bea0a,
+		0xab02f820,
+		0xd1f73a02,		
+		0xbf00be00,
 	};
 
 	int target_code_size = 0;
@@ -335,11 +497,13 @@ int arm_nandread(struct arm_nand_data *nand, uint8_t *data, uint32_t size)
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_IN);
 	init_reg_param(&reg_params[2], "r2", 32, PARAM_IN);
 	init_reg_param(&reg_params[3], "r3", 32, PARAM_IN);
+	init_reg_param(&reg_params[4], "r4", 32, PARAM_IN);
 
 	buf_set_u32(reg_params[0].value, 0, 32, target_buf);
 	buf_set_u32(reg_params[1].value, 0, 32, nand->data);
 	buf_set_u32(reg_params[2].value, 0, 32, size);
 	buf_set_u32(reg_params[3].value, 0, 32, nand->data_width);
+	buf_set_u32(reg_params[4].value, 0, 32, nand->read_width);
 
 	/* armv4 must exit using a hardware breakpoint */
 	if (arm->arch == ARM_ARCH_V4)

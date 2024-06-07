@@ -20,6 +20,7 @@ uint8 lzo_out_buffer[BUF_SIZE + 0x800];
 
 #define READ_WIDTH 2
 #define READ_CMD inw
+#define WRITE_CMD outw
 #define BLOCK_SIZE 512
 
 #if 0
@@ -31,7 +32,7 @@ void copy(uint8 *dst, uint8 *src, uint32 count) {
 }
 #endif
 
-int main (void)
+int main (uint32 NorStartAddress)
 {
 	uint32 cmd;
 
@@ -47,6 +48,10 @@ int main (void)
 	uint32 i;
 	uint32 j;
 
+	unsigned char qry[3];	
+	uint16 cfi_type;
+	uint8 probed = 0;
+
 	int readattempts;
 
 	#ifdef ENABLE_OCL_READ2	
@@ -59,25 +64,73 @@ int main (void)
 
 		switch (cmd&OCL_CMD_MASK) {
 			case OCL_PROBE:
-				dcc_wr(OCL_CMD_DONE);
-				#ifdef READ_AT_0x12000000
-				dcc_wr(0x12000000); /* base */
-				#else
-				dcc_wr(0x0); /* base */
-				#endif
-				dcc_wr(0x02000000); /* size */
-				dcc_wr(1); /* num_sectors */
-				dcc_wr(4096 | ((unsigned long) BLOCK_SIZE << 16)); /* buflen and bufalign */
+				probed = 0;
+
+				WRITE_CMD(NorStartAddress, 0xf0);
+				WRITE_CMD(NorStartAddress, 0xff);
+
+				WRITE_CMD(NorStartAddress + (0x55 * READ_WIDTH), 0x98);
+				for (i = 0; i < 3; i++) {
+					qry[i] = READ_CMD(NorStartAddress + ((i + 0x10) * READ_WIDTH)) & 0xff;
+				}
+
+				if (qry[0] != 0x51 || qry[1] != 0x52 || qry[2] != 0x59) {					
+					WRITE_CMD(NorStartAddress + (0x555 * READ_WIDTH), 0x98);
+					for (i = 0; i < 3; i++) {
+						qry[i] = READ_CMD(NorStartAddress + ((i + 0x10) * READ_WIDTH)) & 0xff;
+					}
+
+					if (qry[0] != 0x51 || qry[1] != 0x52 || qry[2] != 0x59) {
+						dcc_wr(OCL_CMD_ERR);
+						break;
+					}
+				}
+
+				cfi_type = (READ_CMD(NorStartAddress + (0x13 * READ_WIDTH)) & 0xff) | ((READ_CMD(NorStartAddress + (0x14 * READ_WIDTH)) & 0xff) << 8);
+
+				switch (cfi_type) {
+					case 0x1:
+					case 0x3:
+					case 0x200:
+						// Intel/Sharp												
+						dcc_wr(OCL_CMD_DONE);
+						dcc_wr(NorStartAddress); /* base */
+						dcc_wr(1 << READ_CMD(NorStartAddress + (0x27 * READ_WIDTH))); /* size */
+						dcc_wr(1); /* num_sectors */
+						dcc_wr(4096 | ((unsigned long) BLOCK_SIZE << 16)); /* buflen and bufalign */
+						WRITE_CMD(NorStartAddress, 0xff);
+						probed = 1;
+						break;
+					case 0x2:
+						// Spansion/Toshiba/Samsung/Micron						
+						dcc_wr(OCL_CMD_DONE);
+						dcc_wr(NorStartAddress); /* base */
+						dcc_wr(1 << READ_CMD(NorStartAddress + (0x27 * READ_WIDTH))); /* size */
+						dcc_wr(1); /* num_sectors */
+						dcc_wr(4096 | ((unsigned long) BLOCK_SIZE << 16)); /* buflen and bufalign */
+						WRITE_CMD(NorStartAddress, 0xf0);
+						probed = 1;
+						break;
+					default:
+						dcc_wr(OCL_CMD_ERR); // Renesas chips are not supported								
+				};
+											
 				break;
 				
 			case OCL_READ:
+				if (!probed) {
+					dcc_wr(OCL_CMD_ERR);
+					break;
+				}
+
 				addr = dcc_rd();
 				count = (cmd & 0xffff) + 1;				
 
 				dcc_wr(OCL_CMD_DONE);
 				dcc_wr(READ_WIDTH);
+
 				/* Assume addr and count is a multiple of BLOCK_SIZE */
-				read_offset = (addr * BLOCK_SIZE) % 0x02000000;
+				read_offset = NorStartAddress + (addr * BLOCK_SIZE);
 
 				i = 0;
 				readattempts = 0;
@@ -85,24 +138,16 @@ int main (void)
 				while (i < count) {
 					chksum = OCL_CHKS_INIT;
 
-					for (j = 0; j < (BLOCK_SIZE / READ_WIDTH); j++) {
-						#ifdef READ_AT_0x12000000
-						chksum ^= READ_CMD(0x12000000 + read_offset + (j * READ_WIDTH));
-						dcc_wr(READ_CMD(0x12000000 + read_offset + (j * READ_WIDTH)));
-						#elif READ_AT_0x12000000_AFTER_8MB
-						chksum ^= READ_CMD((read_offset >= 0x800000 ? 0x11800000 : 0x0) + (read_offset + (j * READ_WIDTH)));
-						dcc_wr(READ_CMD((read_offset >= 0x800000 ? 0x11800000 : 0x0) + (read_offset + (j * READ_WIDTH))));
-						#else
+					for (j = 0; j < (BLOCK_SIZE / READ_WIDTH); j++) {						
 						chksum ^= READ_CMD(read_offset + (j * READ_WIDTH));
-						dcc_wr(READ_CMD(read_offset + (j * READ_WIDTH)));						
-						#endif
+						dcc_wr(READ_CMD(read_offset + (j * READ_WIDTH)));
 					}
 
 					dcc_wr(chksum);
 
 					if ((dcc_rd() & OCL_CMD_MASK) == OCL_CMD_DONE) {
 						i++;
-						read_offset = (read_offset + BLOCK_SIZE) % 0x02000000;	
+						read_offset += BLOCK_SIZE;	
 						
 						dcc_wr(OCL_CMD_DONE);
 					} else {
@@ -119,6 +164,11 @@ int main (void)
 
 #ifdef ENABLE_OCL_READ2
 			case OCL_READ2:
+				if (!probed) {
+					dcc_wr(OCL_CMD_ERR);
+					break;
+				}
+
 				count_upper = dcc_rd();
 				count = ((cmd & 0xffff) | (count_upper & 0xffff) << 16) + 1;				
 
@@ -129,20 +179,14 @@ int main (void)
 				dcc_wr(BUF_SIZE);
 					
 				/* Assume addr and count is a multiple of BLOCK_SIZE */
-				read_offset = (addr * BUF_SIZE) % 0x02000000;
+				read_offset = NorStartAddress + (addr * BUF_SIZE);
 
 				i = 0;
 				readattempts = 0;
 
 				while (i < count) {
 					chksum = OCL_CHKS_INIT;
-					#ifdef READ_AT_0x12000000					
-					lzo1x_1_compress((uint8 *)(0x12000000 + read_offset), BUF_SIZE, lzo_out_buffer, &lzo_out_len, lzo_work_buffer);
-					#elif READ_AT_0x12000000_AFTER_8MB
-					lzo1x_1_compress((uint8 *)((read_offset >= 0x800000 ? 0x11800000 : 0x0) + read_offset), BUF_SIZE, lzo_out_buffer, &lzo_out_len, lzo_work_buffer);					
-					#else					
 					lzo1x_1_compress((uint8 *)(read_offset), BUF_SIZE, lzo_out_buffer, &lzo_out_len, lzo_work_buffer);
-					#endif					
 
 					j = 0;
 					while (lzo_out_len) {		
@@ -185,7 +229,7 @@ int main (void)
 
 					if ((dcc_rd() & OCL_CMD_MASK) == OCL_CMD_DONE) {
 						i++;
-						read_offset = (read_offset + BUF_SIZE) % 0x02000000;	
+						read_offset += BUF_SIZE;
 						
 						dcc_wr(OCL_CMD_DONE);
 					} else {

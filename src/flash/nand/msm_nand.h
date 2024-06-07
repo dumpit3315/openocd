@@ -8,14 +8,10 @@
 /*
  * MSM NAND Controller
  */
+#include "bitutils.h"
 
 #ifndef OPENOCD_FLASH_NAND_MSM_H
 #define OPENOCD_FLASH_NAND_MSM_H
-
-struct bitmask {
-    uint32_t bit_pos;
-    uint32_t bit_mask;    
-};
 
 #define MSM_NAND_TIMEOUT 5000
 

@@ -98,6 +98,7 @@ static int generic_nand_command(struct nand_device *nand, uint8_t command)
 
         switch (generic_nand->re_width)
         {
+        case 0:
         case 8:
             target_write_u8(target, generic_nand->re, command);
             break;
@@ -192,6 +193,7 @@ static int generic_nand_address(struct nand_device *nand, uint8_t address)
 
         switch (generic_nand->re_width)
         {
+        case 0:
         case 8:
             target_write_u8(target, generic_nand->re, address);
             break;
@@ -258,6 +260,13 @@ static int generic_nand_read(struct nand_device *nand, void *data)
 
     switch (generic_nand->re_width)
     {
+    case 0:
+        if (nand->bus_width == 8) {
+            target_read_u8(target, generic_nand->re, data);
+        } else {
+            target_read_u16(target, generic_nand->re, data);
+        }
+        break;
     case 8:
         target_read_u8(target, generic_nand->re, data);
         break;
@@ -285,6 +294,13 @@ static int generic_nand_write(struct nand_device *nand, uint16_t data)
 
     switch (generic_nand->re_width)
     {
+    case 0:
+        if (nand->bus_width == 8) {
+            target_write_u8(target, generic_nand->re, data);
+        } else {
+            target_write_u16(target, generic_nand->re, data);
+        }
+        break;
     case 8:
         target_write_u8(target, generic_nand->re, data);
         break;
@@ -307,6 +323,9 @@ static int generic_nand_read_block_data(struct nand_device *nand,
     if (result != ERROR_OK)
         return result;
 
+    if (generic_nand->re_width == 0) {
+        generic_nand->io.data_width = nand->bus_width;
+    }
     generic_nand->io.chunk_size = nand->page_size;
 
     /* try the fast way first */
@@ -331,6 +350,9 @@ static int generic_nand_write_block_data(struct nand_device *nand,
     if (result != ERROR_OK)
         return result;
 
+    if (generic_nand->re_width == 0) {
+        generic_nand->io.data_width = nand->bus_width;
+    }
     generic_nand->io.chunk_size = nand->page_size;
 
     /* try the fast way first */
@@ -355,6 +377,7 @@ static int generic_nand_ready(struct nand_device *nand, int timeout)
     struct generic_nand_controller *generic_nand = nand->controller_priv;
     struct target *target = nand->target;
     uint32_t status;
+    int retval;
 
     LOG_DEBUG("generic_wait_timeout count start=%d", timeout);
 
@@ -365,7 +388,12 @@ static int generic_nand_ready(struct nand_device *nand, int timeout)
         if (generic_nand->rb == generic_nand->re)
         {
             generic_nand_command(nand, NAND_CMD_STATUS);
-            generic_nand_read(nand, &status);
+
+            retval = generic_nand_read(nand, &status);
+            if (retval != ERROR_OK) {
+                return 0;
+            }
+
             generic_nand_command(nand, generic_nand->last_command);
 
             if (status & NAND_STATUS_READY)
@@ -379,13 +407,17 @@ static int generic_nand_ready(struct nand_device *nand, int timeout)
             switch (generic_nand->rb_width)
             {
             case 8:
-                target_read_u8(target, generic_nand->rb, (uint8_t *)&status);
+                retval = target_read_u8(target, generic_nand->rb, (uint8_t *)&status);
                 break;
             case 16:
-                target_read_u16(target, generic_nand->rb, (uint16_t *)&status);
+                retval = target_read_u16(target, generic_nand->rb, (uint16_t *)&status);
                 break;
             case 32:
-                target_read_u32(target, generic_nand->rb, (uint32_t *)&status);
+                retval = target_read_u32(target, generic_nand->rb, (uint32_t *)&status);
+            }
+
+            if (retval != ERROR_OK) {
+                return 0;
             }
 
             if (status & generic_nand->rb_mask)
@@ -657,4 +689,5 @@ struct nand_flash_controller generic_nand_controller = {
     .nand_device_command = generic_nand_device_command,
     .init = generic_nand_init,
     .commands = generic_nand_commands,
+    .read1_supported = true,
 };

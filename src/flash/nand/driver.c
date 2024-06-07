@@ -32,6 +32,10 @@ static struct nand_flash_controller *nand_flash_controllers[] = {
 	&msm6800_nand_controller,
 	&msm7200_nand_controller,
 	&generic_nand_controller,
+	&dummy_nand_controller,
+	&pnx6_nand_controller,
+	&pxa3_nand_controller,
+	&onenand_controller,
 	NULL
 };
 
