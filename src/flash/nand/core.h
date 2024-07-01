@@ -60,6 +60,7 @@ struct nand_device {
 	struct nand_block *blocks;
 	struct nand_device *next;
 	int nand_type;
+	int id_ext;
 };
 
 /* NAND Flash Manufacturer ID Codes

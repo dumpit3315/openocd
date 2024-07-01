@@ -83,6 +83,9 @@ struct flash_bank {
 	unsigned int bank_number; /**< The 'bank' (or chip number) of this instance. */
 	target_addr_t base; /**< The base address of this bank */
 	uint32_t size; /**< The size of this chip bank, in bytes */
+	uint32_t actual_size; /**< When using the driver for which the size of the chip is known, it was defined here (bytes) */
+	uint16_t mfr_id; /**< Only used for CFI */
+	uint16_t dev_id; /**< Only used for CFI */
 
 	unsigned int chip_width; /**< Width of the chip in bytes (1,2,4 bytes) */
 	unsigned int bus_width; /**< Maximum bus width, in bytes (1,2,4 bytes) */

@@ -134,7 +134,7 @@ COMMAND_HANDLER(handle_nand_probe_command)
 	retval = nand_probe(p);
 	if (retval == ERROR_OK) {
 		command_print(CMD, "NAND flash device '%s (%s)' found @ 0x%04X/0x%04X (%dMB)",
-			p->device->name, p->manufacturer->name, p->manufacturer->id, p->device->id, p->device->chip_size);
+			p->device->name, p->manufacturer->name, p->manufacturer->id, p->device->id | (p->id_ext << 8), p->device->chip_size);
 	}
 
 	return retval;
@@ -386,6 +386,9 @@ COMMAND_HANDLER(handle_nand_dump_command)
 
 COMMAND_HANDLER(handle_nand_dump_memory_command)
 {
+	uint32_t offset;
+	uint32_t size;
+
 	uint32_t page;
 	uint8_t *buffer;	
 	uint32_t count;		
@@ -404,20 +407,33 @@ COMMAND_HANDLER(handle_nand_dump_memory_command)
 	if (retval != ERROR_OK)
 		return retval;
 
-	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], page);
-	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], count);
+	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], offset);
+	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], size);
+
+	if ((offset % p->page_size) != 0) {
+		LOG_ERROR("offset must be divisible by %d", p->page_size);
+		return ERROR_COMMAND_ARGUMENT_INVALID;
+	}
+
+	if ((size % p->page_size) != 0) {
+		LOG_ERROR("size must be divisible by %d", p->page_size);
+		return ERROR_COMMAND_ARGUMENT_INVALID;
+	}
+
+	page = offset / p->page_size;
+	count = size / p->page_size;
 
 	tot_size = (p->page_size * count) + ((p->page_size <= 512 ? 16 : ((p->page_size >= 4096 && p->nand_type == NAND_TYPE_ONENAND) ? 128 : 64)) * count);
 	oob_base = p->page_size * count;
 
-	buffer = malloc(tot_size);
+	buffer = malloc(tot_size + 4);
 	if (!buffer) {
 		LOG_ERROR("Out of memory");
 		return ERROR_FAIL;
 	}
 
 	while (count--) {		
-		retval = nand_read_page(p, page++, buffer + data_pos, p->page_size, buffer + oob_base + oob_pos, p->page_size <= 512 ? 16 : ((p->page_size >= 4096 && p->nand_type == NAND_TYPE_ONENAND) ? 128 : 64));
+		retval = nand_read_page(p, page++, buffer + data_pos + 2, p->page_size, buffer + oob_base + oob_pos + 4, p->page_size <= 512 ? 16 : ((p->page_size >= 4096 && p->nand_type == NAND_TYPE_ONENAND) ? 128 : 64));
 
 		if (retval != ERROR_OK) {
 			command_print(CMD, "reading NAND flash page failed");
@@ -431,8 +447,14 @@ COMMAND_HANDLER(handle_nand_dump_memory_command)
 		oob_pos += p->page_size <= 512 ? 16 : ((p->page_size >= 4096 && p->nand_type == NAND_TYPE_ONENAND) ? 128 : 64);
 	}
 
+	buffer[0] = data_pos & 0xff;
+	buffer[1] = (data_pos >> 8) & 0xff;
+
+	buffer[oob_base + 2] = oob_pos & 0xff;
+	buffer[oob_base + 3] = (oob_pos >> 8) & 0xff;
+
 	char *sep = "";
-	for (size_t i = 0; i < tot_size; i++) {
+	for (size_t i = 0; i < tot_size + 4; i++) {
 		command_print_sameline(CMD, "%s0x%02x", sep, buffer[i]);
 		sep = " ";
 	}
@@ -513,7 +535,7 @@ static const struct command_registration nand_exec_command_handlers[] = {
 		.name = "dump_memory",
 		.handler = handle_nand_dump_memory_command,
 		.mode = COMMAND_EXEC,
-		.usage = "bank_id page count",
+		.usage = "bank_id offset length",
 		.help = "dump from NAND flash device to memory",
 	},
 	{

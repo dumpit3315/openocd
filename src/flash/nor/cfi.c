@@ -2813,6 +2813,8 @@ int cfi_probe(struct flash_bank *bank)
 			break;
 	}
 
+	if (!bank->size) bank->size = cfi_info->dev_size;
+
 	if ((cfi_info->dev_size * bank->bus_width / bank->chip_width) != bank->size) {
 		LOG_WARNING("configuration specifies 0x%" PRIx32 " size, but a 0x%" PRIx32
 			" size flash was found", bank->size, cfi_info->dev_size);
@@ -2857,6 +2859,9 @@ int cfi_probe(struct flash_bank *bank)
 	}
 
 	cfi_info->probed = true;
+	bank->actual_size = cfi_info->dev_size;
+	bank->mfr_id = cfi_info->manufacturer;
+	bank->dev_id = cfi_info->device_id;
 
 	return ERROR_OK;
 }

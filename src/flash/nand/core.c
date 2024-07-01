@@ -306,6 +306,7 @@ int nand_probe(struct nand_device *nand)
 	nand->page_size = 0;
 	nand->erase_size = 0;
 	nand->nand_type = 0;
+	nand->id_ext = 0;
 
 	/* initialize controller (device parameters are zero, use controller default) */
 	retval = nand->controller->init(nand);
@@ -438,13 +439,15 @@ int nand_probe(struct nand_device *nand)
 	}
 
 	/* page size */
-	if (nand->device->page_size == 0)
+	if (nand->device->page_size == 0) {
 		nand->page_size = 1 << (10 + (id_buff[4] & 3));
+		nand->id_ext = id_buff[4];
+	}
 	else if (nand->device->page_size == 256) {
 		LOG_ERROR("NAND flashes with 256 byte pagesize are not supported");
 		return ERROR_NAND_OPERATION_FAILED;
 	} else
-		nand->page_size = nand->device->page_size;
+		nand->page_size = nand->device->page_size;	
 
 	/* number of address cycles */
 	if (nand->page_size <= 512) {

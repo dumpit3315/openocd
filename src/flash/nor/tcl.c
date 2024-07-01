@@ -163,11 +163,19 @@ COMMAND_HANDLER(handle_flash_probe_command)
 
 	if (p) {
 		retval = p->driver->probe(p);
-		if (retval == ERROR_OK)
-			command_print(CMD,
-				"flash '%s' found at " TARGET_ADDR_FMT,
-				p->driver->name,
-				p->base);
+		if (retval == ERROR_OK) {
+			if (p->actual_size) {
+				command_print(CMD,
+					"flash '%s' found at " TARGET_ADDR_FMT " @ 0x%04X/0x%04X (%dMB)",
+					p->driver->name,
+					p->base, p->mfr_id, p->dev_id, p->actual_size >> 20);
+			} else {
+				command_print(CMD,
+					"flash '%s' found at " TARGET_ADDR_FMT " @ 0x%04X/0x%04X (%dMB)",
+					p->driver->name,
+					p->base, p->mfr_id, p->dev_id, p->size >> 20);
+			}
+		}
 	} else {
 		command_print(CMD, "flash bank '#%s' is out of bounds", CMD_ARGV[0]);
 		retval = ERROR_FAIL;
@@ -1528,6 +1536,9 @@ COMMAND_HANDLER(handle_flash_bank_command)
 	COMMAND_PARSE_NUMBER(uint, CMD_ARGV[4], c->bus_width);
 	c->default_padded_value = c->erased_value = 0xff;
 	c->minimal_write_gap = FLASH_WRITE_GAP_SECTOR;
+	c->actual_size = 0;
+	c->mfr_id = 0;
+	c->dev_id = 0;
 
 	int retval;
 	retval = CALL_COMMAND_HANDLER(driver->flash_bank_command, c);
