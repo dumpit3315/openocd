@@ -797,7 +797,7 @@ struct msm6800_nand_controller
 	uint32_t int_address;
 	uint32_t op_reset_flag;
 	bool skip_init;
-	bool skip_gpio_init;
+	//bool wp_disable;
 	uint32_t prev_cfg1;
 	uint32_t prev_cfg2;
 	uint32_t prev_cfg1_f2;
@@ -1465,7 +1465,7 @@ NAND_DEVICE_COMMAND_HANDLER(msm6800_nand_device_command)
 	msm6800_nand->int_address = 0x80000488;
 	msm6800_nand->op_reset_flag = 2;
 	msm6800_nand->skip_init = false;
-	msm6800_nand->skip_gpio_init = false;
+	//msm6800_nand->wp_disable = false;
 	msm6800_nand->cfg1 = 0xffffffff;
 	msm6800_nand->cfg2 = 0xffffffff;
 	msm6800_nand->cfg_common = 0xffffffff;
@@ -1523,13 +1523,17 @@ static int msm6800_nand_init(struct nand_device *nand)
 	{
 		msm6800_nand->init_done = 1;
 
-		if (!msm6800_nand->skip_gpio_init)
+		/*
+		if (msm6800_nand->wp_disable)
 		{
 			for (int c = 0; c < 8; c++)
 			{
+				// Brute force the WP# pin by setting all the GPIO pin to high
+				// Reverse engineered as Smart & Cool WP Disable on RIFF Box
 				target_write_u32(target, 0x80000900 + (c * 4), 0xffffffff);
 			}
 		}
+		*/ // Supplemented with Dumpit write protect disarm functions
 
 		result = target_read_u32(target, msm6800_nand->base_offset + MSM6800_REG_FLASH_COMMON_CFG, &msm6800_nand->prev_cfg_common);
 		if (result != ERROR_OK)
@@ -1684,7 +1688,7 @@ INT_SETTER_6800(handle_msm6800_int_clr_addr_command, p->clr_address, "0x%x", "in
 INT_SETTER_6800(handle_msm6800_int_addr_command, p->int_address, "0x%x", "int_addr")
 INT_SETTER_6800(handle_msm6800_op_command, p->op_reset_flag, "%u", "op")
 BOOL_SETTER_6800(handle_msm6800_skip_init_command, p->skip_init, "skip_init")
-BOOL_SETTER_6800(handle_msm6800_skip_gpio_init_command, p->skip_gpio_init, "skip_gpio_init")
+//BOOL_SETTER_6800(handle_msm6800_wp_disable_command, p->wp_disable, "wp_disable")
 INT_SETTER_6800(handle_msm6800_custom_cfg1_command, p->cfg1, "0x%x", "custom_cfg1")
 INT_SETTER_6800(handle_msm6800_custom_cfg2_command, p->cfg2, "0x%x", "custom_cfg2")
 INT_SETTER_6800(handle_msm6800_custom_cfg_common_command, p->cfg_common, "0x%x", "custom_cfg_common")
@@ -1727,13 +1731,13 @@ static const struct command_registration msm6800_sub_command_handlers[] = {
 		.help = "TODO",
 		.usage = "[nand_id] [skip_init]",
 	},
-	{
-		.name = "skip_gpio_init",
-		.handler = handle_msm6800_skip_gpio_init_command,
-		.mode = COMMAND_ANY,
-		.help = "TODO",
-		.usage = "[nand_id] [skip_gpio_init]",
-	},
+	// {
+	// 	.name = "wp_disable",
+	// 	.handler = handle_msm6800_wp_disable_command,
+	// 	.mode = COMMAND_ANY,
+	// 	.help = "TODO",
+	// 	.usage = "[nand_id] [wp_disable]",
+	// },
 	{
 		.name = "custom_cfg1",
 		.handler = handle_msm6800_custom_cfg1_command,
