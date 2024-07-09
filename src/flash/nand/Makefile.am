@@ -36,7 +36,8 @@ NAND_DRIVERS = \
 	%D%/bitutils.c \
 	%D%/pxa.c \
 	%D%/onenand.c \
-	%D%/bcm2133.c
+	%D%/bcm2133.c \
+	%D%/onenand_msm.c
 
 NANDHEADERS = \
 	%D%/arm_io.h \
@@ -56,4 +57,5 @@ NANDHEADERS = \
 	%D%/bitutils.h \
 	%D%/pxa.h \
 	%D%/onenand.h \
-	%D%/debug.h
+	%D%/debug.h \
+	%D%/onenand_msm.h

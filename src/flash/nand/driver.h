@@ -117,5 +117,6 @@ extern struct nand_flash_controller dummy_nand_controller;
 extern struct nand_flash_controller pnx6_nand_controller;
 extern struct nand_flash_controller pxa3_nand_controller;
 extern struct nand_flash_controller onenand_controller;
+extern struct nand_flash_controller onenand_msm_controller;
 
 #endif /* OPENOCD_FLASH_NAND_DRIVER_H */
